@@ -12,6 +12,10 @@ export interface AuthBindings {
   DB: D1Database;
   EVENTS: D1Database;
   CF_ACCESS_TEAM_DOMAIN: string;
+  // AUD of the Access application protecting this deployment. The production
+  // Worker and the `preview` Worker (see env.preview in wrangler.jsonc) are
+  // fronted by separate Access apps with different AUDs but the same team
+  // JWKS, so each environment sets its own CF_ACCESS_AUD.
   CF_ACCESS_AUD: string;
   // Access group name (custom claim) whose members are template editors.
   LEADER_GROUP: string;
