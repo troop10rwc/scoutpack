@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scoutpack",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-01-01",
+  "observability": { "enabled": true },
+  // Cloudflare Access (Zero Trust) protects the domain; the Worker verifies the
+  // Access JWT it injects. These identify the Access team + application.
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CF_ACCESS_TEAM_DOMAIN": "troop10rwc.cloudflareaccess.com",
+    // Shared with patrol-expense: a single Access application protects both
+    // /expenses* and /gearlist* on troop10rwc.org, so the same AUD validates
+    // JWTs for both apps.
+    "CF_ACCESS_AUD": "070c36323eb0321ed17203a1b6997e7489cac583535f93e933a61ba274a02c0b",
+    // Access group name whose members can edit packing-list templates.
+    "LEADER_GROUP": "leaders"
+  },
+  // Serve the app as a same-origin tab at troop10rwc.org/gearlist. Requires
+  // troop10rwc.org to be a Cloudflare zone on this account (proxied DNS).
+  // Everything else on the domain falls through to the existing site.
+  "routes": [
+    { "pattern": "troop10rwc.org/gearlist*", "zone_name": "troop10rwc.org" }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The app is mounted under /gearlist. The Worker owns the whole subpath:
+    // it strips the prefix and serves the API, auth, and (via the ASSETS
+    // binding) the SPA — since assets are built with Vite base "/gearlist/"
+    // but stored at their root paths.
+    "run_worker_first": ["/gearlist/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "scoutpack",
+      "database_id": "003b04a9-1e30-4db0-8bc0-2e39dcb555f7",
+      "migrations_dir": "migrations"
+    },
+    {
+      // Existing, externally-managed troop calendar DB. Read-only from this
+      // app. remote:true => `wrangler dev`/vite proxy reads the real
+      // calendar-db (requires `wrangler login`); the scoutpack DB above stays
+      // local. Schema: see calendar_events in src/worker/events.ts.
+      "binding": "EVENTS",
+      "database_name": "calendar-db",
+      "database_id": "997ba5ce-ba69-4686-ab1c-945cb79c1837",
+      "remote": true
+    }
+  ]
+}
