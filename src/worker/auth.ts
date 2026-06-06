@@ -12,12 +12,11 @@ export interface AuthBindings {
   DB: D1Database;
   EVENTS: D1Database;
   CF_ACCESS_TEAM_DOMAIN: string;
+  // AUD of the Access application protecting this deployment. The production
+  // Worker and the `preview` Worker (see env.preview in wrangler.jsonc) are
+  // fronted by separate Access apps with different AUDs but the same team
+  // JWKS, so each environment sets its own CF_ACCESS_AUD.
   CF_ACCESS_AUD: string;
-  // AUD of the separate Access application that protects PR preview
-  // deployments (the *.workers.dev Preview URLs produced by
-  // `wrangler versions upload`). Signed by the same team JWKS. When a request
-  // arrives on a preview host, this AUD — and only this AUD — is accepted.
-  CF_ACCESS_AUD_PREVIEW?: string;
   // Access group name (custom claim) whose members are template editors.
   LEADER_GROUP: string;
   // DEV ONLY: when "1", skip Access and treat every request as a fixed dev user.
@@ -63,21 +62,7 @@ function pickGroups(p: AccessPayload): string[] {
   return Array.isArray(g) ? g.filter((x): x is string => typeof x === "string") : [];
 }
 
-// Preview deployments are served from Cloudflare Preview URLs on
-// *.workers.dev, fronted by their own Access application. Production is served
-// from troop10rwc.org. `wrangler versions upload` ships the same vars to both,
-// so we pick which AUD to trust from the request host: a preview host accepts
-// only the preview AUD, production accepts only the production AUD.
-function expectedAudForHost(host: string, env: AuthBindings): string | null {
-  if (host.endsWith(".workers.dev")) return env.CF_ACCESS_AUD_PREVIEW ?? null;
-  return env.CF_ACCESS_AUD;
-}
-
-async function verifyAccessJwt(
-  token: string,
-  host: string,
-  env: AuthBindings,
-): Promise<Identity | null> {
+async function verifyAccessJwt(token: string, env: AuthBindings): Promise<Identity | null> {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [h, p, sig] = parts;
@@ -92,10 +77,8 @@ async function verifyAccessJwt(
   }
 
   if (payload.iss !== `https://${env.CF_ACCESS_TEAM_DOMAIN}`) return null;
-  const expectedAud = expectedAudForHost(host, env);
-  if (!expectedAud) return null; // preview host with no preview AUD configured
   const aud = Array.isArray(payload.aud) ? payload.aud : payload.aud ? [payload.aud] : [];
-  if (!aud.includes(expectedAud)) return null;
+  if (!aud.includes(env.CF_ACCESS_AUD)) return null;
   if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
 
   const jwk = (await getSigningKeys(env.CF_ACCESS_TEAM_DOMAIN)).find(
@@ -126,8 +109,7 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AuthBindings; Variables:
   }
   const token =
     c.req.header("Cf-Access-Jwt-Assertion") || getCookie(c, "CF_Authorization");
-  const host = new URL(c.req.url).host;
-  const id = token ? await verifyAccessJwt(token, host, c.env) : null;
+  const id = token ? await verifyAccessJwt(token, c.env) : null;
   if (!id) return c.json({ error: "unauthorized" }, 401);
   c.set("user", id);
   await next();

@@ -13,11 +13,6 @@
     // /expenses* and /gearlist* on troop10rwc.org, so the same AUD validates
     // JWTs for both apps.
     "CF_ACCESS_AUD": "070c36323eb0321ed17203a1b6997e7489cac583535f93e933a61ba274a02c0b",
-    // A separate Access application protects the PR preview deployments served
-    // on *.workers.dev (the Preview URLs from `wrangler versions upload`). Same
-    // team JWKS, different AUD. The Worker accepts this AUD only on preview
-    // hosts; production hosts accept only CF_ACCESS_AUD above.
-    "CF_ACCESS_AUD_PREVIEW": "16fbe4b476b6e9d9d601170b34a8c62b2a99b8f0bd846112ea1de296856c99f2",
     // Access group name whose members can edit packing-list templates.
     "LEADER_GROUP": "leaders"
   },
@@ -53,5 +48,49 @@
       "database_id": "997ba5ce-ba69-4686-ab1c-945cb79c1837",
       "remote": true
     }
-  ]
+  ],
+  // PR preview environment. Deployed via `wrangler versions upload --env
+  // preview` (the build command configured in Cloudflare Workers Builds for
+  // non-production branches). This is a SEPARATE Worker, `scoutpack-preview`,
+  // reachable only on its *.workers.dev Preview URL — it has no production
+  // route, so PRs can't touch the live site or the production database.
+  //
+  // `vars` and `d1_databases` are non-inheritable, so everything the Worker
+  // needs is re-declared here. Inheritable keys (assets, observability,
+  // compatibility_date, main) fall through from the top level.
+  "env": {
+    "preview": {
+      // No production route — the preview Worker is served only from its
+      // Cloudflare Preview URL on *.workers.dev. workers_dev keeps that
+      // subdomain enabled.
+      "routes": [],
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "preview",
+        "CF_ACCESS_TEAM_DOMAIN": "troop10rwc.cloudflareaccess.com",
+        // Separate Access application fronting the preview Worker's
+        // *.workers.dev hostnames. Same team JWKS as production, different AUD.
+        "CF_ACCESS_AUD": "16fbe4b476b6e9d9d601170b34a8c62b2a99b8f0bd846112ea1de296856c99f2",
+        "LEADER_GROUP": "leaders"
+      },
+      "d1_databases": [
+        {
+          // Isolated preview copy of the scoutpack DB so PR testing never
+          // mutates production gear/packing data. Apply migrations with:
+          // `wrangler d1 migrations apply DB --env preview --remote`.
+          "binding": "DB",
+          "database_name": "scoutpack-preview",
+          "database_id": "ff34d477-554c-45a0-87a8-0bd49ef055dc",
+          "migrations_dir": "migrations"
+        },
+        {
+          // Same externally-managed, read-only troop calendar DB as production.
+          "binding": "EVENTS",
+          "database_name": "calendar-db",
+          "database_id": "997ba5ce-ba69-4686-ab1c-945cb79c1837",
+          "remote": true
+        }
+      ]
+    }
+  }
 }
