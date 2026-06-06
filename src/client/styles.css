@@ -143,3 +143,20 @@ th { background: #f0ede4; }
 
 .actions { margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; }
 .saved { color: var(--accent); }
+
+/* Closet import (LighterPack) */
+.import { margin: 1.5rem 0; }
+.import .import-url { flex: 1; min-width: 16rem; }
+.import-preview { margin-top: 0.75rem; }
+.import-preview tr.skipped { opacity: 0.45; }
+.import-preview tr.skipped td:not(:first-child) { text-decoration: line-through; }
+.tag.dup {
+  margin-left: 0.5rem;
+  background: #fde2df;
+  color: var(--warn);
+}
+button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+}

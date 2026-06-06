@@ -22,12 +22,15 @@ import {
   deleteClosetItem,
   createClosetItem,
   getActiveTemplate,
+  importClosetItems,
   listActiveTemplates,
   listCloset,
   loadPackingListBundle,
+  previewClosetImport,
   publishTemplate,
   updateClosetItem,
   updatePackingListItem,
+  type ClosetItemInput,
 } from "./gear.ts";
 
 interface Bindings extends AuthBindings {
@@ -149,6 +152,35 @@ api.post("/scouts/:scoutId/closet", async (c) => {
   if (!body.name || !body.category) return c.json(bad("name and category are required"), 400);
   const item = await createClosetItem(c.env.DB, scoutId, body);
   return c.json(item, 201);
+});
+
+// Preview a LighterPack CSV import: fetch + parse, flag duplicates. No writes.
+api.post("/scouts/:scoutId/closet/import/preview", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{ url?: string }>();
+  if (!body.url?.trim()) return c.json(bad("url is required"), 400);
+  try {
+    const items = await previewClosetImport(c.env.DB, scoutId, body.url.trim());
+    return c.json({ items });
+  } catch (e) {
+    const { body: errBody, status } = handleError(e);
+    return c.json(errBody, status as 400 | 500);
+  }
+});
+
+// Commit the user-selected rows from a previewed import into the closet.
+api.post("/scouts/:scoutId/closet/import", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{ items?: ClosetItemInput[] }>();
+  if (!Array.isArray(body.items) || !body.items.length) {
+    return c.json(bad("items are required"), 400);
+  }
+  const clean = body.items.filter((i) => i?.name?.trim() && i?.category?.trim());
+  if (!clean.length) return c.json(bad("no valid items to import"), 400);
+  const created = await importClosetItems(c.env.DB, scoutId, clean);
+  return c.json({ items: created, imported: created.length }, 201);
 });
 
 api.patch("/scouts/:scoutId/closet/:itemId", async (c) => {

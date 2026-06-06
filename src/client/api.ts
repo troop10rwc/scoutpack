@@ -1,6 +1,7 @@
 import { BASE_PATH } from "../shared/constants.ts";
 import type {
   ClosetItem,
+  ImportPreviewItem,
   LeaderEventRow,
   Me,
   PackingListBundle,
@@ -58,6 +59,16 @@ export const api = {
     }),
   deleteClosetItem: (scoutId: string, itemId: string) =>
     request<{ ok: boolean }>(`/scouts/${scoutId}/closet/${itemId}`, { method: "DELETE" }),
+  previewClosetImport: (scoutId: string, url: string) =>
+    request<{ items: ImportPreviewItem[] }>(`/scouts/${scoutId}/closet/import/preview`, {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+  importCloset: (scoutId: string, items: Partial<ClosetItem>[]) =>
+    request<{ items: ClosetItem[]; imported: number }>(`/scouts/${scoutId}/closet/import`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
 
   getPackingList: (scoutId: string, eventId: string) =>
     request<PackingListBundle | { list: null; event: PackingListBundle["event"]; items: [] }>(

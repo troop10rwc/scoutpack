@@ -1,5 +1,6 @@
 import type {
   ClosetItem,
+  ImportPreviewItem,
   PackingList,
   PackingListBundle,
   PackingListItem,
@@ -10,6 +11,7 @@ import type {
   UpcomingEvent,
 } from "../shared/types.ts";
 import { matchKey } from "../shared/slug.ts";
+import { ImportError, lighterpackCsvUrl, parseLighterpackCsv } from "./lighterpack.ts";
 import type { EventType } from "../shared/constants.ts";
 
 // ---------- closet ----------
@@ -121,6 +123,98 @@ export async function deleteClosetItem(db: D1Database, scoutId: string, itemId: 
     .bind(itemId, scoutId)
     .run();
   return (res.meta.changes ?? 0) > 0;
+}
+
+// ---------- closet import (LighterPack CSV) ----------
+
+// Fetch and parse a LighterPack CSV, flagging rows that already exist in the
+// scout's closet (or repeat earlier in the CSV) so the UI can default them off.
+export async function previewClosetImport(
+  db: D1Database,
+  scoutId: string,
+  url: string,
+): Promise<ImportPreviewItem[]> {
+  const csvUrl = lighterpackCsvUrl(url);
+  let res: Response;
+  try {
+    res = await fetch(csvUrl, { headers: { accept: "text/csv,*/*" } });
+  } catch {
+    throw new ImportError("Could not reach LighterPack");
+  }
+  if (!res.ok) throw new ImportError(`Could not fetch CSV (HTTP ${res.status})`);
+  const parsed = parseLighterpackCsv(await res.text());
+  if (!parsed.length) throw new ImportError("No items found in that CSV");
+
+  const existing = await listCloset(db, scoutId);
+  const existingKeys = new Set(existing.map((i) => i.match_key));
+  const seen = new Set<string>();
+  return parsed.map((it) => {
+    const key = matchKey(it.name);
+    const duplicate = existingKeys.has(key) || seen.has(key);
+    seen.add(key);
+    return { ...it, match_key: key, duplicate };
+  });
+}
+
+// Bulk-insert the user-selected import rows, then relink any unlinked
+// packing-list items that now match a closet item (same logic as the single
+// createClosetItem path, applied once for the whole batch).
+export async function importClosetItems(
+  db: D1Database,
+  scoutId: string,
+  inputs: ClosetItemInput[],
+): Promise<ClosetItem[]> {
+  if (!inputs.length) return [];
+  const ids: string[] = [];
+  const stmts: D1PreparedStatement[] = [];
+  for (const input of inputs) {
+    const id = crypto.randomUUID();
+    ids.push(id);
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO closet_items (id, scout_id, name, description, brand, category,
+                                     weight_grams, quantity, is_worn, is_consumable, match_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          scoutId,
+          input.name,
+          input.description ?? null,
+          input.brand ?? null,
+          input.category,
+          input.weight_grams ?? null,
+          input.quantity ?? 1,
+          input.is_worn ? 1 : 0,
+          input.is_consumable ? 1 : 0,
+          matchKey(input.name),
+        ),
+    );
+  }
+  // Relink pending packing-list items to whichever new closet item matches.
+  stmts.push(
+    db
+      .prepare(
+        `UPDATE packing_list_items
+            SET closet_item_id = (
+              SELECT ci.id FROM closet_items ci
+               WHERE ci.scout_id = ?1 AND ci.match_key = packing_list_items.match_key
+               LIMIT 1)
+          WHERE closet_item_id IS NULL
+            AND packing_list_id IN (SELECT id FROM packing_lists WHERE scout_id = ?1)
+            AND match_key IN (SELECT match_key FROM closet_items WHERE scout_id = ?1)`,
+      )
+      .bind(scoutId),
+  );
+  await db.batch(stmts);
+
+  const placeholders = ids.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(`SELECT * FROM closet_items WHERE id IN (${placeholders}) ORDER BY category, name`)
+    .bind(...ids)
+    .all<ClosetItem>();
+  return results ?? [];
 }
 
 // ---------- templates ----------
