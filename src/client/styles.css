@@ -70,14 +70,14 @@ input, select {
   border-radius: 6px;
   padding: 1rem;
 }
-.event-meta { display: flex; gap: 0.75rem; align-items: center; }
+.event-meta { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .event-date { color: var(--muted); font-size: 0.9rem; }
 .event-name {
-  display: block;
   font-weight: 600;
-  margin: 0.4rem 0;
   font-size: 1.05rem;
   color: var(--fg);
+  /* Keep name on the left; push the tag + date to the right of the row. */
+  margin-right: auto;
 }
 .event-stats { display: flex; gap: 1rem; color: var(--muted); font-size: 0.9rem; }
 .event-stats .missing { color: var(--warn); }

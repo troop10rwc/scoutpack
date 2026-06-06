@@ -34,10 +34,10 @@ export function Dashboard({ scout, me }: { scout: Scout; me: Me }) {
       <ul className="event-list">
         {events.map((e) => (
           <li key={e.id} className="event-card">
-            <a className="event-name" href={`#/event/${encodeURIComponent(e.id)}`}>
-              {e.name}
-            </a>
             <div className="event-meta">
+              <a className="event-name" href={`#/event/${encodeURIComponent(e.id)}`}>
+                {e.name}
+              </a>
               <span className={`type-badge type-${e.event_type}`}>
                 {EVENT_TYPE_LABELS[e.event_type]}
               </span>
