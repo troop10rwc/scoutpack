@@ -13,6 +13,11 @@
     // /expenses* and /gearlist* on troop10rwc.org, so the same AUD validates
     // JWTs for both apps.
     "CF_ACCESS_AUD": "070c36323eb0321ed17203a1b6997e7489cac583535f93e933a61ba274a02c0b",
+    // A separate Access application protects the PR preview deployments served
+    // on *.workers.dev (the Preview URLs from `wrangler versions upload`). Same
+    // team JWKS, different AUD. The Worker accepts this AUD only on preview
+    // hosts; production hosts accept only CF_ACCESS_AUD above.
+    "CF_ACCESS_AUD_PREVIEW": "16fbe4b476b6e9d9d601170b34a8c62b2a99b8f0bd846112ea1de296856c99f2",
     // Access group name whose members can edit packing-list templates.
     "LEADER_GROUP": "leaders"
   },
