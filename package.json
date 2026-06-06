@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/ci-build.mjs",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
