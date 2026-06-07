@@ -33,9 +33,16 @@ data, Cloudflare Access (Slack SSO) for auth. Served same-origin at
   authenticates at the edge for the whole domain. The Worker **verifies the
   Access JWT** (RS256 via the team JWKS, **WebCrypto**) and reads identity
   (`src/worker/auth.ts`). No app-level login. `DEV_AUTH_BYPASS=1` for local dev.
-- **Roles** — a configurable Access group claim (`LEADER_GROUP`) marks
-  template editors. Default users are scouts/parents; group members are
-  leaders.
+- **Roles** — driven by the **roster** (`member_roles` table, `src/worker/roster.ts`),
+  not the OIDC claim. Each member can be assigned a **position** (Scoutmaster,
+  Assistant Scoutmaster, Crew Advisor, Assistant Crew Advisor, Senior Patrol
+  Leader, or Scout); the five leadership positions confer the "leader" role
+  (template/event editing **and** the ability to edit other members' roles, on
+  the leader-only **Roster** page). The Access group claim (`LEADER_GROUP`) is a
+  **fallback**: a member with no explicit position row inherits leader from the
+  group, so the troop is never locked out before anyone is assigned. An explicit
+  position row always overrides the group (e.g. an explicit "Scout" demotes a
+  group member).
 
 ## External integrations
 - None. The troop events DB lives in the same Cloudflare account; the gear

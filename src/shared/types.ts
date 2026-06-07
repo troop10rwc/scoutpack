@@ -2,10 +2,56 @@ import type { EventType } from "./constants.ts";
 
 export type Role = "scout" | "leader";
 
+// Specific roster titles a member can hold. The first five are leadership
+// positions; `scout` is the explicit default (and lets an admin demote someone
+// who would otherwise be a leader via the Access group). Order here is the
+// display/seniority order used by the roster UI.
+export const POSITIONS = [
+  "scoutmaster",
+  "assistant_scoutmaster",
+  "crew_advisor",
+  "assistant_crew_advisor",
+  "senior_patrol_leader",
+  "scout",
+] as const;
+
+export type Position = (typeof POSITIONS)[number];
+
+export const POSITION_LABELS: Record<Position, string> = {
+  scoutmaster: "Scoutmaster",
+  assistant_scoutmaster: "Assistant Scoutmaster",
+  crew_advisor: "Crew Advisor",
+  assistant_crew_advisor: "Assistant Crew Advisor",
+  senior_patrol_leader: "Senior Patrol Leader",
+  scout: "Scout",
+};
+
+// Positions that confer leader capabilities (template/event editing) AND the
+// ability to edit other members' roles. Everything not in this set is a scout.
+export const LEADER_POSITIONS: readonly Position[] = [
+  "scoutmaster",
+  "assistant_scoutmaster",
+  "crew_advisor",
+  "assistant_crew_advisor",
+  "senior_patrol_leader",
+];
+
 export interface Identity {
   email: string;
   name: string;
   role: Role;
+  // The explicit roster title, if one has been assigned; null means the member
+  // has no row and their role came from the Access group fallback (or default).
+  position: Position | null;
+}
+
+// A row in the roster-management UI: one known member and their position.
+export interface RosterMember {
+  email: string;
+  position: Position | null; // null => no explicit assignment (default scout)
+  role: Role;                // effective capability derived from position
+  updated_by: string | null;
+  updated_at: string | null;
 }
 
 export interface Scout {
@@ -19,6 +65,7 @@ export interface Me {
   email: string;
   name: string;
   role: Role;
+  position: Position | null;
   scouts: Scout[];
 }
 

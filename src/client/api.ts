@@ -5,6 +5,8 @@ import type {
   LeaderEventRow,
   Me,
   PackingListBundle,
+  Position,
+  RosterMember,
   Scout,
   TemplateBundle,
   UpcomingEvent,
@@ -113,6 +115,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+
+  // Leader-only roster management.
+  listRoster: () => request<RosterMember[]>(`/roster`),
+  setRosterPosition: (email: string, position: Position | null) =>
+    request<{ ok: boolean; email: string; position: Position | null }>(
+      `/roster/${encodeURIComponent(email)}`,
+      { method: "PUT", body: JSON.stringify({ position }) },
+    ),
 
   getTemplate: (eventType: EventType) =>
     request<TemplateBundle>(`/templates/${eventType}`),

@@ -24,9 +24,25 @@ Create `.dev.vars` for local development:
 
 ```
 DEV_AUTH_BYPASS=1
-# Optional: change the dev user role:
+# Optional: stand in for Access LEADER_GROUP membership. This is the *fallback*
+# role — assigning the dev user a position in the Roster page (member_roles)
+# overrides it, just like in production.
 # DEV_AUTH_ROLE=leader
 ```
+
+## Roles & roster
+
+A member's role comes from the **roster** (`member_roles` table), not the OIDC
+claim. Leaders manage it on the **Roster** page (`#/roster`): assign each member
+a position — Scoutmaster, Assistant Scoutmaster, Crew Advisor, Assistant Crew
+Advisor, Senior Patrol Leader, or Scout. The five leadership positions get
+leader access (packing-list templates, event tagging, and editing roles).
+
+If a member has no position assigned, they fall back to the Cloudflare Access
+`LEADER_GROUP` claim — so the troop is never locked out before anyone is
+assigned. An explicit position always wins over the group (assign an explicit
+"Scout — override group" to demote someone who is in `LEADER_GROUP`). See
+`src/worker/roster.ts`.
 
 Run:
 

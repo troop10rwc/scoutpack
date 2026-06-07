@@ -17,6 +17,12 @@ import {
   listScouts,
 } from "./profiles.ts";
 import {
+  isValidPosition,
+  listRoster,
+  requireRoleManager,
+  setPosition,
+} from "./roster.ts";
+import {
   attachPackingStats,
   createPackingList,
   deleteClosetItem,
@@ -68,7 +74,43 @@ const handleError = (e: unknown) => {
 api.get("/me", async (c) => {
   const u = c.get("user");
   const scouts = await listScouts(c.env.DB, c.get("accountId"));
-  return c.json({ email: u.email, name: u.name, role: u.role, scouts });
+  return c.json({
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    position: u.position,
+    scouts,
+  });
+});
+
+// ---- roster / roles ----
+// Leader-only: list every known member with their assigned position.
+api.get("/roster", async (c) => {
+  try {
+    requireRoleManager(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  return c.json(await listRoster(c.env.DB));
+});
+
+// Leader-only: set (or clear) a member's position. Body: { position: Position | null }.
+api.put("/roster/:email", async (c) => {
+  try {
+    requireRoleManager(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const email = decodeURIComponent(c.req.param("email")).trim();
+  if (!email || !email.includes("@")) return c.json(bad("a valid email is required"), 400);
+  const body = await c.req.json<{ position: string | null }>();
+  if (body.position !== null && !isValidPosition(body.position)) {
+    return c.json(bad("invalid position"), 400);
+  }
+  await setPosition(c.env.DB, email, body.position, c.get("user").email);
+  return c.json({ ok: true, email: email.toLowerCase(), position: body.position });
 });
 
 api.post("/me/scouts", async (c) => {
