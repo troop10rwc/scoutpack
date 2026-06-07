@@ -59,6 +59,31 @@ export const api = {
     }),
   deleteClosetItem: (scoutId: string, itemId: string) =>
     request<{ ok: boolean }>(`/scouts/${scoutId}/closet/${itemId}`, { method: "DELETE" }),
+  reorderCloset: (
+    scoutId: string,
+    order: { id: string; category: string; sort_order: number }[],
+  ) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/closet/order`, {
+      method: "PUT",
+      body: JSON.stringify({ order }),
+    }),
+  uploadClosetImage: async (scoutId: string, itemId: string, file: File) => {
+    const res = await fetch(`${API}/scouts/${scoutId}/closet/${itemId}/image`, {
+      method: "PUT",
+      headers: { "content-type": file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as { error?: string }).error ?? res.statusText);
+    }
+    return (await res.json()) as ClosetItem;
+  },
+  deleteClosetImage: (scoutId: string, itemId: string) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/closet/${itemId}/image`, { method: "DELETE" }),
+  // URL for an item's photo; pass the image_key to bust cache when it changes.
+  closetImageUrl: (scoutId: string, itemId: string, imageKey: string) =>
+    `${API}/scouts/${scoutId}/closet/${itemId}/image?k=${encodeURIComponent(imageKey)}`,
   previewClosetImport: (scoutId: string, url: string) =>
     request<{ items: ImportPreviewItem[] }>(`/scouts/${scoutId}/closet/import/preview`, {
       method: "POST",

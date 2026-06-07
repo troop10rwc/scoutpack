@@ -22,12 +22,15 @@ import {
   deleteClosetItem,
   createClosetItem,
   getActiveTemplate,
+  getClosetItem,
   importClosetItems,
   listActiveTemplates,
   listCloset,
   loadPackingListBundle,
   previewClosetImport,
   publishTemplate,
+  reorderCloset,
+  setClosetImageKey,
   updateClosetItem,
   updatePackingListItem,
   type ClosetItemInput,
@@ -35,6 +38,7 @@ import {
 
 interface Bindings extends AuthBindings {
   ASSETS: Fetcher;
+  IMAGES: R2Bucket;
   ENVIRONMENT?: string;
 }
 
@@ -148,10 +152,75 @@ api.post("/scouts/:scoutId/closet", async (c) => {
     quantity?: number;
     is_worn?: boolean;
     is_consumable?: boolean;
+    is_favorite?: boolean;
+    link_url?: string | null;
   }>();
   if (!body.name || !body.category) return c.json(bad("name and category are required"), 400);
   const item = await createClosetItem(c.env.DB, scoutId, body);
   return c.json(item, 201);
+});
+
+// Apply a new drag ordering across categories. Body: { order: [{id, category, sort_order}] }.
+api.put("/scouts/:scoutId/closet/order", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{
+    order?: { id: string; category: string; sort_order: number }[];
+  }>();
+  if (!Array.isArray(body.order)) return c.json(bad("order is required"), 400);
+  const ok = await reorderCloset(c.env.DB, scoutId, body.order);
+  return ok ? c.json({ ok: true }) : c.json(bad("no valid items"), 400);
+});
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// Upload (or replace) an item photo. Raw image bytes in the body; the old R2
+// object, if any, is deleted.
+api.put("/scouts/:scoutId/closet/:itemId/image", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const itemId = c.req.param("itemId");
+  const item = await getClosetItem(c.env.DB, scoutId, itemId);
+  if (!item) return c.json(bad("item not found"), 404);
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.startsWith("image/")) return c.json(bad("expected an image upload"), 400);
+  const bytes = await c.req.arrayBuffer();
+  if (bytes.byteLength === 0) return c.json(bad("empty upload"), 400);
+  if (bytes.byteLength > MAX_IMAGE_BYTES) return c.json(bad("image too large (max 5 MB)"), 413);
+  const ext = contentType.split("/")[1]?.split("+")[0]?.replace(/[^a-z0-9]/gi, "") || "bin";
+  const key = `closet/${scoutId}/${itemId}/${crypto.randomUUID()}.${ext}`;
+  await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType } });
+  if (item.image_key) await c.env.IMAGES.delete(item.image_key).catch(() => {});
+  const updated = await setClosetImageKey(c.env.DB, scoutId, itemId, key);
+  return c.json(updated, 200);
+});
+
+// Remove an item photo.
+api.delete("/scouts/:scoutId/closet/:itemId/image", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const itemId = c.req.param("itemId");
+  const item = await getClosetItem(c.env.DB, scoutId, itemId);
+  if (!item) return c.json(bad("item not found"), 404);
+  if (item.image_key) await c.env.IMAGES.delete(item.image_key).catch(() => {});
+  await setClosetImageKey(c.env.DB, scoutId, itemId, null);
+  return c.json({ ok: true });
+});
+
+// Stream an item photo from R2 (same-origin, behind Access). Cache-busted by the
+// ?k=<image_key> query the client appends.
+api.get("/scouts/:scoutId/closet/:itemId/image", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const item = await getClosetItem(c.env.DB, scoutId, c.req.param("itemId"));
+  if (!item?.image_key) return c.json(bad("no image"), 404);
+  const obj = await c.env.IMAGES.get(item.image_key);
+  if (!obj) return c.json(bad("no image"), 404);
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("etag", obj.httpEtag);
+  headers.set("cache-control", "private, max-age=86400");
+  return new Response(obj.body, { headers });
 });
 
 // Preview a LighterPack CSV import: fetch + parse, flag duplicates. No writes.

@@ -33,6 +33,10 @@ export interface ClosetItem {
   quantity: number;
   is_worn: 0 | 1;
   is_consumable: 0 | 1;
+  is_favorite: 0 | 1;
+  link_url: string | null;
+  image_key: string | null; // R2 object key for the item photo, if any
+  sort_order: number;
   match_key: string;
   created_at: string;
   updated_at: string;

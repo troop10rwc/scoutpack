@@ -232,6 +232,83 @@ button.icon:hover { color: var(--warn); filter: none; }
   border-top: 1px solid var(--border);
 }
 
+/* Editable gear rows */
+.gear-table td { vertical-align: middle; }
+.gear-table tr.drag-over td { box-shadow: inset 0 2px 0 0 var(--accent); }
+.gear-table td.grip, .gear-table th.grip { width: 1.2rem; padding-right: 0; }
+.grip-handle {
+  cursor: grab;
+  color: #c4c2bb;
+  user-select: none;
+  font-size: 1rem;
+  line-height: 1;
+}
+.grip-handle:active { cursor: grabbing; }
+
+.cell-edit {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.25rem 0.35rem;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.cell-edit:hover { border-color: var(--border); }
+.cell-edit:focus { border-color: var(--accent); background: #fff; outline: none; }
+.cell-edit.num { text-align: right; }
+.cell-edit.qty { width: 3.5rem; }
+.gear-table td.desc .cell-edit { color: var(--muted); }
+
+.weight-cell { white-space: nowrap; }
+.weight-cell .cell-edit { width: 5rem; display: inline-block; }
+.unit-suffix { color: var(--muted); font-size: 0.8rem; margin-left: 0.15rem; }
+
+.acts { white-space: nowrap; }
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #b3b1aa;
+  padding: 0.2rem;
+  cursor: pointer;
+  border-radius: 4px;
+  vertical-align: middle;
+  line-height: 0;
+}
+.icon-btn:hover { filter: none; background: var(--bg); color: var(--fg); }
+.icon-btn.on { color: var(--accent); }
+.icon-btn.open-link { font-size: 0.85rem; line-height: 1; text-decoration: none; color: var(--accent); }
+
+.thumb-wrap { position: relative; display: inline-block; vertical-align: middle; }
+.thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: block;
+}
+.thumb-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 13px;
+  border: none;
+  cursor: pointer;
+}
+.thumb-x:hover { filter: brightness(1.1); }
+
+.link-edit-row td { border-bottom: 1px dotted var(--border); padding-top: 0; }
+.link-input { width: 100%; }
+
 /* Closet import (LighterPack) */
 .import { margin: 1.5rem 0 0; }
 .import .import-url { flex: 1; min-width: 16rem; }

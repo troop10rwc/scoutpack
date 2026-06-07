@@ -18,7 +18,9 @@ import type { EventType } from "../shared/constants.ts";
 
 export async function listCloset(db: D1Database, scoutId: string): Promise<ClosetItem[]> {
   const { results } = await db
-    .prepare(`SELECT * FROM closet_items WHERE scout_id = ? ORDER BY category, name`)
+    .prepare(
+      `SELECT * FROM closet_items WHERE scout_id = ? ORDER BY category, sort_order, name`,
+    )
     .bind(scoutId)
     .all<ClosetItem>();
   return results ?? [];
@@ -33,6 +35,25 @@ export interface ClosetItemInput {
   quantity?: number;
   is_worn?: boolean;
   is_consumable?: boolean;
+  is_favorite?: boolean;
+  link_url?: string | null;
+  sort_order?: number;
+}
+
+// Next free sort_order at the end of a category for this scout.
+async function nextSortOrder(
+  db: D1Database,
+  scoutId: string,
+  category: string,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS n
+         FROM closet_items WHERE scout_id = ? AND category = ?`,
+    )
+    .bind(scoutId, category)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 export async function createClosetItem(
@@ -42,11 +63,13 @@ export async function createClosetItem(
 ): Promise<ClosetItem> {
   const id = crypto.randomUUID();
   const key = matchKey(input.name);
+  const sortOrder = input.sort_order ?? (await nextSortOrder(db, scoutId, input.category));
   await db
     .prepare(
       `INSERT INTO closet_items (id, scout_id, name, description, brand, category,
-                                 weight_grams, quantity, is_worn, is_consumable, match_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                 weight_grams, quantity, is_worn, is_consumable,
+                                 is_favorite, link_url, sort_order, match_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -59,6 +82,9 @@ export async function createClosetItem(
       input.quantity ?? 1,
       input.is_worn ? 1 : 0,
       input.is_consumable ? 1 : 0,
+      input.is_favorite ? 1 : 0,
+      input.link_url ?? null,
+      sortOrder,
       key,
     )
     .run();
@@ -100,21 +126,91 @@ export async function updateClosetItem(
     is_worn: input.is_worn !== undefined ? (input.is_worn ? 1 : 0) : row.is_worn,
     is_consumable:
       input.is_consumable !== undefined ? (input.is_consumable ? 1 : 0) : row.is_consumable,
+    is_favorite: input.is_favorite !== undefined ? (input.is_favorite ? 1 : 0) : row.is_favorite,
+    link_url: input.link_url !== undefined ? input.link_url : row.link_url,
   };
+  // Moving an item to a different category (via inline edit) appends it to the
+  // end of the target category; drag-reorder sets sort_order explicitly instead.
+  let sortOrder = input.sort_order ?? row.sort_order;
+  if (input.category && input.category !== row.category && input.sort_order === undefined) {
+    sortOrder = await nextSortOrder(db, scoutId, input.category);
+  }
   const newKey = matchKey(merged.name);
   await db
     .prepare(
       `UPDATE closet_items
           SET name=?, description=?, brand=?, category=?, weight_grams=?, quantity=?,
-              is_worn=?, is_consumable=?, match_key=?, updated_at=datetime('now')
+              is_worn=?, is_consumable=?, is_favorite=?, link_url=?, sort_order=?,
+              match_key=?, updated_at=datetime('now')
         WHERE id=?`,
     )
     .bind(
       merged.name, merged.description, merged.brand, merged.category, merged.weight_grams,
-      merged.quantity, merged.is_worn, merged.is_consumable, newKey, itemId,
+      merged.quantity, merged.is_worn, merged.is_consumable, merged.is_favorite,
+      merged.link_url, sortOrder, newKey, itemId,
     )
     .run();
-  return { ...merged, match_key: newKey };
+  return { ...merged, sort_order: sortOrder, match_key: newKey };
+}
+
+// Batch-apply a new ordering (and category membership) produced by a drag. Each
+// entry carries the item's new category + sort_order. Verifies ownership first.
+export async function reorderCloset(
+  db: D1Database,
+  scoutId: string,
+  order: { id: string; category: string; sort_order: number }[],
+): Promise<boolean> {
+  if (!order.length) return true;
+  const ids = order.map((o) => o.id);
+  const placeholders = ids.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(`SELECT id FROM closet_items WHERE scout_id = ? AND id IN (${placeholders})`)
+    .bind(scoutId, ...ids)
+    .all<{ id: string }>();
+  const owned = new Set((results ?? []).map((r) => r.id));
+  const valid = order.filter((o) => owned.has(o.id));
+  if (!valid.length) return false;
+  await db.batch(
+    valid.map((o) =>
+      db
+        .prepare(
+          `UPDATE closet_items SET category=?, sort_order=?, updated_at=datetime('now')
+            WHERE id=? AND scout_id=?`,
+        )
+        .bind(o.category, o.sort_order, o.id, scoutId),
+    ),
+  );
+  return true;
+}
+
+export async function getClosetItem(
+  db: D1Database,
+  scoutId: string,
+  itemId: string,
+): Promise<ClosetItem | null> {
+  return await db
+    .prepare(`SELECT * FROM closet_items WHERE id = ? AND scout_id = ?`)
+    .bind(itemId, scoutId)
+    .first<ClosetItem>();
+}
+
+// Point an item at a new R2 photo (or clear it with null). Returns the item.
+export async function setClosetImageKey(
+  db: D1Database,
+  scoutId: string,
+  itemId: string,
+  key: string | null,
+): Promise<ClosetItem | null> {
+  const row = await getClosetItem(db, scoutId, itemId);
+  if (!row) return null;
+  await db
+    .prepare(
+      `UPDATE closet_items SET image_key=?, updated_at=datetime('now')
+        WHERE id=? AND scout_id=?`,
+    )
+    .bind(key, itemId, scoutId)
+    .run();
+  return { ...row, image_key: key };
 }
 
 export async function deleteClosetItem(db: D1Database, scoutId: string, itemId: string): Promise<boolean> {
@@ -165,17 +261,32 @@ export async function importClosetItems(
   inputs: ClosetItemInput[],
 ): Promise<ClosetItem[]> {
   if (!inputs.length) return [];
+  // Append each imported item to the end of its category. Seed per-category
+  // counters from existing maxes so imports don't collide with current items.
+  const { results: maxes } = await db
+    .prepare(
+      `SELECT category, MAX(sort_order) AS m FROM closet_items
+        WHERE scout_id = ? GROUP BY category`,
+    )
+    .bind(scoutId)
+    .all<{ category: string; m: number }>();
+  const nextByCat = new Map<string, number>(
+    (maxes ?? []).map((r) => [r.category, (r.m ?? -1) + 1]),
+  );
   const ids: string[] = [];
   const stmts: D1PreparedStatement[] = [];
   for (const input of inputs) {
     const id = crypto.randomUUID();
     ids.push(id);
+    const sortOrder = nextByCat.get(input.category) ?? 0;
+    nextByCat.set(input.category, sortOrder + 1);
     stmts.push(
       db
         .prepare(
           `INSERT INTO closet_items (id, scout_id, name, description, brand, category,
-                                     weight_grams, quantity, is_worn, is_consumable, match_key)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                     weight_grams, quantity, is_worn, is_consumable,
+                                     is_favorite, link_url, sort_order, match_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           id,
@@ -188,6 +299,9 @@ export async function importClosetItems(
           input.quantity ?? 1,
           input.is_worn ? 1 : 0,
           input.is_consumable ? 1 : 0,
+          input.is_favorite ? 1 : 0,
+          input.link_url ?? null,
+          sortOrder,
           matchKey(input.name),
         ),
     );
