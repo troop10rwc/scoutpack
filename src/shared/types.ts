@@ -33,9 +33,28 @@ export interface ClosetItem {
   quantity: number;
   is_worn: 0 | 1;
   is_consumable: 0 | 1;
+  is_favorite: 0 | 1;
+  link_url: string | null;
+  image_key: string | null; // R2 object key for the item photo, if any
+  sort_order: number;
   match_key: string;
   created_at: string;
   updated_at: string;
+}
+
+// A single row parsed from an external (LighterPack) CSV, ready to preview
+// before importing into the closet. `duplicate` is true when an item with the
+// same match_key already exists in the closet or appeared earlier in the CSV.
+export interface ImportPreviewItem {
+  name: string;
+  category: string;
+  description: string | null;
+  weight_grams: number | null;
+  quantity: number;
+  is_worn: boolean;
+  is_consumable: boolean;
+  match_key: string;
+  duplicate: boolean;
 }
 
 export interface Template {

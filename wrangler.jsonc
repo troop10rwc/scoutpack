@@ -41,6 +41,11 @@
     // but stored at their root paths.
     "run_worker_first": ["/gearlist/*"]
   },
+  // Stores closet item photos. Shared by production and *.workers.dev previews
+  // (same bindings ship to both), so preview uploads land in the same bucket.
+  "r2_buckets": [
+    { "binding": "IMAGES", "bucket_name": "scoutpack-images" }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
