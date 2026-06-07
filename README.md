@@ -10,28 +10,27 @@ for the tech stack overview.
 
 Foundational types (`Role`, `Position`, `LEADER_POSITIONS`, `Identity`) come
 from `@troop10rwc/shared`, which publishes to **GitHub Packages** (not npmjs).
-The repo's `.npmrc` only sets the registry mapping; the **auth line lives in
-your user-level `~/.npmrc`** (or `NPM_TOKEN` env for CI) — put a classic GitHub
-PAT with `read:packages` scope there:
+The committed `.npmrc` sets the registry and interpolates the auth token from
+the `NPM_TOKEN` environment variable — so every environment provides the token
+the same way: as a `read:packages`-scoped classic GitHub PAT in `$NPM_TOKEN`.
 
-```
-# ~/.npmrc
-//npm.pkg.github.com/:_authToken=ghp_yourTokenHere
-```
-
-For Cloudflare's git-integrated build, set `NPM_TOKEN` as a build environment
-variable (classic PAT with `read:packages`) on the Worker's dashboard, then set
-the **build command** to:
+**Local dev** — export it from your shell profile, e.g. `~/.zshrc`:
 
 ```bash
-echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && npm ci && npm run build
+export NPM_TOKEN=ghp_yourTokenHere
 ```
 
-The committed `.npmrc` provides the registry mapping; the build command writes
-the auth line from `$NPM_TOKEN` at build time (the token never lands in any
-committed file). GitHub Actions can either run the same one-liner or use
-`actions/setup-node@v4` with `registry-url` + `always-auth: true` (which writes
-its own `.npmrc` at job start).
+(Or use `direnv` with a gitignored `.envrc`.) A token sitting only in
+`~/.npmrc` will *not* work — the repo `.npmrc` interpolates `${NPM_TOKEN}` to
+empty/literal and the registry rejects with 401.
+
+**Cloudflare's git-integrated build** — add `NPM_TOKEN` as a build env var
+(secret) on the Worker's dashboard. No build-command customization needed;
+Cloudflare's auto `npm clean-install` reads the repo `.npmrc` and picks up the
+token via env interpolation.
+
+**GitHub Actions** — set `NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job,
+or use `actions/setup-node@v4` with `registry-url` + `always-auth: true`.
 
 ```bash
 npm install
