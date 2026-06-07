@@ -20,7 +20,7 @@ import {
   isValidPosition,
   listRoster,
   requireRoleManager,
-  setPosition,
+  setOverride,
 } from "./roster.ts";
 import {
   attachPackingStats,
@@ -78,13 +78,14 @@ api.get("/me", async (c) => {
     email: u.email,
     name: u.name,
     role: u.role,
-    position: u.position,
+    override: u.override,
+    rosterPositions: u.rosterPositions,
     scouts,
   });
 });
 
 // ---- roster / roles ----
-// Leader-only: list every known member with their assigned position.
+// Leader-only: every known member with roster-derived positions + any override.
 api.get("/roster", async (c) => {
   try {
     requireRoleManager(c);
@@ -92,10 +93,11 @@ api.get("/roster", async (c) => {
     const { body, status } = handleError(e);
     return c.json(body, status as 403);
   }
-  return c.json(await listRoster(c.env.DB));
+  return c.json(await listRoster(c.env.DB, c.env.ROSTER));
 });
 
-// Leader-only: set (or clear) a member's position. Body: { position: Position | null }.
+// Leader-only: set (or clear) a member's override. Body: { position: Position | null }.
+// Clearing reverts the member to roster-db / Access-group resolution.
 api.put("/roster/:email", async (c) => {
   try {
     requireRoleManager(c);
@@ -109,8 +111,14 @@ api.put("/roster/:email", async (c) => {
   if (body.position !== null && !isValidPosition(body.position)) {
     return c.json(bad("invalid position"), 400);
   }
-  await setPosition(c.env.DB, email, body.position, c.get("user").email);
-  return c.json({ ok: true, email: email.toLowerCase(), position: body.position });
+  // Guard against self-lockout: a role manager can't set an override that would
+  // revoke their own leader access (it'd block them from ever undoing it).
+  const me = c.get("user");
+  if (email.toLowerCase() === me.email.toLowerCase() && body.position === "scout") {
+    return c.json(bad("you can't revoke your own leader access"), 400);
+  }
+  await setOverride(c.env.DB, email, body.position, me.email);
+  return c.json({ ok: true, email: email.toLowerCase(), override: body.position });
 });
 
 api.post("/me/scouts", async (c) => {

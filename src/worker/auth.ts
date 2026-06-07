@@ -21,6 +21,8 @@ interface AuthSubject {
 export interface AuthBindings {
   DB: D1Database;
   EVENTS: D1Database;
+  // Externally-managed roster DB (read-only). Drives role resolution.
+  ROSTER: D1Database;
   CF_ACCESS_TEAM_DOMAIN: string;
   // AUD of the Access application protecting production on troop10rwc.org.
   CF_ACCESS_AUD: string;
@@ -148,6 +150,7 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AuthBindings; Variables:
   if (!subject) return c.json({ error: "unauthorized" }, 401);
   const id = await resolveIdentity(
     c.env.DB,
+    c.env.ROSTER,
     { email: subject.email, name: subject.name },
     subject.inLeaderGroup,
   );

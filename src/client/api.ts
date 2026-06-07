@@ -116,10 +116,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // Leader-only roster management.
+  // Leader-only roster management. setRosterOverride sets the manual override
+  // layered on top of roster-db resolution; null clears it.
   listRoster: () => request<RosterMember[]>(`/roster`),
-  setRosterPosition: (email: string, position: Position | null) =>
-    request<{ ok: boolean; email: string; position: Position | null }>(
+  setRosterOverride: (email: string, position: Position | null) =>
+    request<{ ok: boolean; email: string; override: Position | null }>(
       `/roster/${encodeURIComponent(email)}`,
       { method: "PUT", body: JSON.stringify({ position }) },
     ),

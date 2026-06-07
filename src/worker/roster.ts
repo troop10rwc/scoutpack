@@ -1,12 +1,15 @@
 import type { Identity, Position, RosterMember, Role } from "../shared/types.ts";
 import { LEADER_POSITIONS, POSITIONS } from "../shared/types.ts";
+import { getAllRosterPositions, getRosterPositions, hasLeaderPosition } from "./rosterdb.ts";
 
-// Roster-driven role resolution. A member's role comes from an explicit
-// position recorded in `member_roles`; if they have no row, the Cloudflare
-// Access LEADER_GROUP claim is the fallback so the troop is never locked out
-// before anyone has been assigned a position. See migrations/0005_member_roles.sql.
+// Role resolution. Three layers, highest precedence first:
+//   1. Explicit override in member_roles (this DB) — see setPosition.
+//   2. The member's positions in the external roster DB (BSA titles).
+//   3. The Cloudflare Access LEADER_GROUP claim (bootstrap fallback) so the
+//      troop is never locked out before the roster is wired up.
+// See migrations/0005_member_roles.sql and src/worker/rosterdb.ts.
 
-function isLeaderPosition(p: Position): boolean {
+function overrideIsLeader(p: Position): boolean {
   return LEADER_POSITIONS.includes(p);
 }
 
@@ -18,8 +21,8 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-// Look up the explicit position for an email, if any.
-export async function getPosition(
+// Look up the explicit override for an email, if any.
+export async function getOverride(
   db: D1Database,
   email: string,
 ): Promise<Position | null> {
@@ -30,66 +33,106 @@ export async function getPosition(
   return row?.position ?? null;
 }
 
-// Combine the verified Access identity with the roster to produce the final
-// identity (role + position) the app reasons about. `inLeaderGroup` is the
-// LEADER_GROUP membership derived from the Access JWT; it only matters when the
-// member has no explicit position row.
+// Resolve the effective role from the three layers.
+function resolveRole(
+  override: Position | null,
+  rosterPositions: string[],
+  inLeaderGroup: boolean,
+): Role {
+  if (override) return overrideIsLeader(override) ? "leader" : "scout";
+  if (hasLeaderPosition(rosterPositions)) return "leader";
+  return inLeaderGroup ? "leader" : "scout";
+}
+
+// Combine the verified Access identity with the override + roster DB to produce
+// the final identity the app reasons about. `inLeaderGroup` is the LEADER_GROUP
+// membership from the Access JWT; it only matters as a last-resort fallback.
 export async function resolveIdentity(
   db: D1Database,
+  roster: D1Database,
   base: { email: string; name: string },
   inLeaderGroup: boolean,
 ): Promise<Identity> {
-  const position = await getPosition(db, base.email);
-  let role: Role;
-  if (position) {
-    role = isLeaderPosition(position) ? "leader" : "scout";
-  } else {
-    role = inLeaderGroup ? "leader" : "scout";
-  }
-  return { email: base.email, name: base.name, role, position };
+  const [override, rosterPositions] = await Promise.all([
+    getOverride(db, base.email),
+    getRosterPositions(roster, base.email),
+  ]);
+  return {
+    email: base.email,
+    name: base.name,
+    role: resolveRole(override, rosterPositions, inLeaderGroup),
+    override,
+    rosterPositions,
+  };
 }
 
-// Every known person: accounts that have logged in, plus any pre-assigned
-// member_roles rows for people who haven't yet. Position-bearing members sort
-// first (by seniority), then plain accounts alphabetically.
-export async function listRoster(db: D1Database): Promise<RosterMember[]> {
-  const { results } = await db
-    .prepare(
-      // member_roles emails are always lowercased; account emails come straight
-      // from the JWT, so match case-insensitively to avoid splitting a member
-      // into two rows.
-      `SELECT LOWER(a.email) AS email, r.position AS position,
-              r.updated_by AS updated_by, r.updated_at AS updated_at
-         FROM accounts a
-         LEFT JOIN member_roles r ON r.email = LOWER(a.email)
-       UNION
-       SELECT r.email AS email, r.position AS position,
-              r.updated_by AS updated_by, r.updated_at AS updated_at
-         FROM member_roles r
-         WHERE r.email NOT IN (SELECT LOWER(email) FROM accounts)`,
-    )
-    .all<{
-      email: string;
-      position: Position | null;
-      updated_by: string | null;
-      updated_at: string | null;
-    }>();
-  const order = (p: Position | null) =>
-    p ? POSITIONS.indexOf(p) : POSITIONS.length;
-  return (results ?? [])
-    .map((r) => ({
+// Everyone the app knows about: logged-in accounts, members carrying an
+// override, and members present in the roster DB — merged by email. Each row
+// shows their roster-derived positions plus any override and the effective
+// role. Leaders sort first, then alphabetically by email.
+export async function listRoster(
+  db: D1Database,
+  roster: D1Database,
+): Promise<RosterMember[]> {
+  const [{ results }, rosterMap] = await Promise.all([
+    db
+      .prepare(
+        // member_roles emails are always lowercased; account emails come from
+        // the JWT, so match case-insensitively to avoid duplicate rows.
+        `SELECT LOWER(a.email) AS email, r.position AS override,
+                r.updated_by AS updated_by, r.updated_at AS updated_at
+           FROM accounts a
+           LEFT JOIN member_roles r ON r.email = LOWER(a.email)
+         UNION
+         SELECT r.email AS email, r.position AS override,
+                r.updated_by AS updated_by, r.updated_at AS updated_at
+           FROM member_roles r
+           WHERE r.email NOT IN (SELECT LOWER(email) FROM accounts)`,
+      )
+      .all<{
+        email: string;
+        override: Position | null;
+        updated_by: string | null;
+        updated_at: string | null;
+      }>(),
+    getAllRosterPositions(roster),
+  ]);
+
+  const byEmail = new Map<string, RosterMember>();
+  for (const r of results ?? []) {
+    const rosterPositions = rosterMap.get(r.email) ?? [];
+    byEmail.set(r.email, {
       email: r.email,
-      position: r.position,
-      role: (r.position && isLeaderPosition(r.position) ? "leader" : "scout") as Role,
+      override: r.override,
+      rosterPositions,
+      role: resolveRole(r.override, rosterPositions, false),
       updated_by: r.updated_by,
       updated_at: r.updated_at,
-    }))
-    .sort((a, b) => order(a.position) - order(b.position) || a.email.localeCompare(b.email));
+    });
+  }
+  // Include roster members who have neither logged in nor have an override.
+  for (const [email, rosterPositions] of rosterMap) {
+    if (byEmail.has(email)) continue;
+    byEmail.set(email, {
+      email,
+      override: null,
+      rosterPositions,
+      role: resolveRole(null, rosterPositions, false),
+      updated_by: null,
+      updated_at: null,
+    });
+  }
+
+  return [...byEmail.values()].sort(
+    (a, b) =>
+      (a.role === "leader" ? 0 : 1) - (b.role === "leader" ? 0 : 1) ||
+      a.email.localeCompare(b.email),
+  );
 }
 
-// Assign (upsert) a member's position. Passing null clears the explicit
-// assignment, reverting them to the Access-group fallback (default scout).
-export async function setPosition(
+// Assign (upsert) a member's override. Passing null clears it, reverting them
+// to roster-db / Access-group resolution.
+export async function setOverride(
   db: D1Database,
   email: string,
   position: Position | null,
