@@ -33,14 +33,24 @@ data, Cloudflare Access (Slack SSO) for auth. Served same-origin at
   authenticates at the edge for the whole domain. The Worker **verifies the
   Access JWT** (RS256 via the team JWKS, **WebCrypto**) and reads identity
   (`src/worker/auth.ts`). No app-level login. `DEV_AUTH_BYPASS=1` for local dev.
-- **Roles** — a configurable Access group claim (`LEADER_GROUP`) marks
-  template editors. Default users are scouts/parents; group members are
-  leaders.
+- **Roles** — driven by the externally-managed **roster DB** (`ROSTER` binding,
+  read-only; `src/worker/rosterdb.ts`), not the OIDC claim. A user's email is
+  matched against `adult_members.email` / `youth_members.emails` and their BSA
+  `positions` decide access: Scoutmaster, Assistant Scoutmaster, Crew Advisor,
+  Assistant Crew Advisor, Senior Patrol Leader, or Troop Admin confer "leader"
+  (template/event editing + role management). Resolution (`src/worker/roster.ts`)
+  is three-layered, highest first: (1) a manual **override** in scoutpack's
+  `member_roles` table, set by leaders on the **Roster** page (`#/roster`) for
+  people not on the roster or to grant/revoke ahead of an import; (2) the roster
+  DB positions; (3) the Access `LEADER_GROUP` claim as a bootstrap fallback so
+  the troop is never locked out. A force-"Scout" override revokes a roster/group
+  leader; you can't revoke your own access.
 
 ## External integrations
-- None. The troop events DB lives in the same Cloudflare account; the gear
-  Worker reads it via a `remote: true` D1 binding. Cross-DB joins aren't
-  supported in D1, so each side is queried separately and joined in code.
+- The troop **events** and **roster** DBs live in the same Cloudflare account;
+  the gear Worker reads each via a `remote: true` D1 binding (read-only).
+  Cross-DB joins aren't supported in D1, so each side is queried separately and
+  joined in code.
 
 ## Tooling & language
 - **TypeScript** end-to-end with shared types (`src/shared/`) between client and

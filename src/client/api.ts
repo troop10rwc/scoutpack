@@ -5,6 +5,8 @@ import type {
   LeaderEventRow,
   Me,
   PackingListBundle,
+  Position,
+  RosterMember,
   Scout,
   TemplateBundle,
   UpcomingEvent,
@@ -113,6 +115,15 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+
+  // Leader-only roster management. setRosterOverride sets the manual override
+  // layered on top of roster-db resolution; null clears it.
+  listRoster: () => request<RosterMember[]>(`/roster`),
+  setRosterOverride: (email: string, position: Position | null) =>
+    request<{ ok: boolean; email: string; override: Position | null }>(
+      `/roster/${encodeURIComponent(email)}`,
+      { method: "PUT", body: JSON.stringify({ position }) },
+    ),
 
   getTemplate: (eventType: EventType) =>
     request<TemplateBundle>(`/templates/${eventType}`),

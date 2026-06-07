@@ -2,10 +2,77 @@ import type { EventType } from "./constants.ts";
 
 export type Role = "scout" | "leader";
 
+// Role resolution has three layers, highest precedence first:
+//   1. An explicit OVERRIDE in scoutpack's member_roles table (Position below).
+//   2. The member's POSITIONS in the external roster DB (BSA titles), matched
+//      by email. Holding any LEADER_ROSTER_POSITION confers leader.
+//   3. The Cloudflare Access LEADER_GROUP claim (bootstrap fallback).
+// See src/worker/roster.ts (resolution) and src/worker/rosterdb.ts (roster DB).
+
+// Manual override values an admin can assign in member_roles. These are NOT the
+// BSA titles — they're a small capability vocabulary layered on top of the
+// roster. The five leadership values confer leader; `scout` force-demotes a
+// member who would otherwise be a leader via the roster or the Access group.
+export const POSITIONS = [
+  "scoutmaster",
+  "assistant_scoutmaster",
+  "crew_advisor",
+  "assistant_crew_advisor",
+  "senior_patrol_leader",
+  "scout",
+] as const;
+
+export type Position = (typeof POSITIONS)[number];
+
+export const POSITION_LABELS: Record<Position, string> = {
+  scoutmaster: "Scoutmaster",
+  assistant_scoutmaster: "Assistant Scoutmaster",
+  crew_advisor: "Crew Advisor",
+  assistant_crew_advisor: "Assistant Crew Advisor",
+  senior_patrol_leader: "Senior Patrol Leader",
+  scout: "Scout",
+};
+
+// Override values that confer leader capabilities. `scout` does not.
+export const LEADER_POSITIONS: readonly Position[] = [
+  "scoutmaster",
+  "assistant_scoutmaster",
+  "crew_advisor",
+  "assistant_crew_advisor",
+  "senior_patrol_leader",
+];
+
+// BSA position titles (as stored in roster-db's `positions` JSON arrays) that
+// confer leader access. Matched case-insensitively. Troop Admin is included as
+// it designates elevated app administration.
+export const LEADER_ROSTER_POSITIONS = [
+  "Scoutmaster",
+  "Assistant Scoutmaster",
+  "Crew Advisor",
+  "Assistant Crew Advisor",
+  "Senior Patrol Leader",
+  "Troop Admin",
+] as const;
+
 export interface Identity {
   email: string;
   name: string;
   role: Role;
+  // Manual override from member_roles, if any (null => no override row).
+  override: Position | null;
+  // Raw BSA titles from the roster DB for this member (empty if not on roster).
+  rosterPositions: string[];
+}
+
+// A row in the roster-management UI: one known member, their roster-derived
+// positions, and any manual override.
+export interface RosterMember {
+  email: string;
+  override: Position | null;   // explicit member_roles override (null => none)
+  rosterPositions: string[];   // BSA titles from roster-db
+  role: Role;                  // effective capability after all layers
+  updated_by: string | null;
+  updated_at: string | null;
 }
 
 export interface Scout {
@@ -19,6 +86,8 @@ export interface Me {
   email: string;
   name: string;
   role: Role;
+  override: Position | null;
+  rosterPositions: string[];
   scouts: Scout[];
 }
 

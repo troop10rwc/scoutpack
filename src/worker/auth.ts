@@ -1,6 +1,16 @@
 import type { MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
-import type { Identity, Role } from "../shared/types.ts";
+import type { Identity } from "../shared/types.ts";
+import { resolveIdentity } from "./roster.ts";
+
+// The verified Access subject before roster lookup: who they are plus whether
+// the Access JWT puts them in LEADER_GROUP. The final role/position is resolved
+// against the member_roles table (see roster.ts) — the group is only a fallback.
+interface AuthSubject {
+  email: string;
+  name: string;
+  inLeaderGroup: boolean;
+}
 
 // The whole troop10rwc.org domain sits behind Cloudflare Access (Zero Trust)
 // with Slack as the identity provider. Access authenticates users at the edge
@@ -11,6 +21,8 @@ import type { Identity, Role } from "../shared/types.ts";
 export interface AuthBindings {
   DB: D1Database;
   EVENTS: D1Database;
+  // Externally-managed roster DB (read-only). Drives role resolution.
+  ROSTER: D1Database;
   CF_ACCESS_TEAM_DOMAIN: string;
   // AUD of the Access application protecting production on troop10rwc.org.
   CF_ACCESS_AUD: string;
@@ -78,7 +90,7 @@ async function verifyAccessJwt(
   token: string,
   host: string,
   env: AuthBindings,
-): Promise<Identity | null> {
+): Promise<AuthSubject | null> {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [h, p, sig] = parts;
@@ -114,22 +126,34 @@ async function verifyAccessJwt(
   const email = String(payload.email ?? "");
   if (!email) return null;
   const name = String(payload.custom?.name ?? email);
-  const role: Role = pickGroups(payload).includes(env.LEADER_GROUP) ? "leader" : "scout";
-  return { email, name, role };
+  const inLeaderGroup = pickGroups(payload).includes(env.LEADER_GROUP);
+  return { email, name, inLeaderGroup };
 }
 
 export const requireAuth: MiddlewareHandler<{ Bindings: AuthBindings; Variables: { user: Identity } }> = async (c, next) => {
+  let subject: AuthSubject | null;
   if (c.env.DEV_AUTH_BYPASS === "1") {
-    const role: Role = c.env.DEV_AUTH_ROLE === "leader" ? "leader" : "scout";
-    const email = c.env.DEV_AUTH_EMAIL ?? "dev@local";
-    c.set("user", { email, name: "Dev User", role });
-    return next();
+    subject = {
+      email: c.env.DEV_AUTH_EMAIL ?? "dev@local",
+      name: "Dev User",
+      // In dev, DEV_AUTH_ROLE=leader stands in for LEADER_GROUP membership; the
+      // real role/position is still resolved from member_roles below, so a dev
+      // row can override it just like in production.
+      inLeaderGroup: c.env.DEV_AUTH_ROLE === "leader",
+    };
+  } else {
+    const token =
+      c.req.header("Cf-Access-Jwt-Assertion") || getCookie(c, "CF_Authorization");
+    const host = new URL(c.req.url).host;
+    subject = token ? await verifyAccessJwt(token, host, c.env) : null;
   }
-  const token =
-    c.req.header("Cf-Access-Jwt-Assertion") || getCookie(c, "CF_Authorization");
-  const host = new URL(c.req.url).host;
-  const id = token ? await verifyAccessJwt(token, host, c.env) : null;
-  if (!id) return c.json({ error: "unauthorized" }, 401);
+  if (!subject) return c.json({ error: "unauthorized" }, 401);
+  const id = await resolveIdentity(
+    c.env.DB,
+    c.env.ROSTER,
+    { email: subject.email, name: subject.name },
+    subject.inLeaderGroup,
+  );
   c.set("user", id);
   await next();
 };

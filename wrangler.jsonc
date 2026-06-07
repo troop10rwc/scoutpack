@@ -62,6 +62,18 @@
       "database_name": "calendar-db",
       "database_id": "997ba5ce-ba69-4686-ab1c-945cb79c1837",
       "remote": true
+    },
+    {
+      // Existing, externally-managed troop roster DB (imported from BSA).
+      // Read-only from this app. Drives each member's role/position: a user's
+      // email is matched against adult_members.email / youth_members.emails and
+      // their `positions` JSON array determines leader access. remote:true for
+      // the same reason as calendar-db above. Schema + queries:
+      // src/worker/rosterdb.ts.
+      "binding": "ROSTER",
+      "database_name": "roster-db",
+      "database_id": "9657e9c5-3426-4af4-8aaa-706309ad6633",
+      "remote": true
     }
   ]
 }

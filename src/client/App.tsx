@@ -6,6 +6,7 @@ import { Dashboard } from "./pages/Dashboard.tsx";
 import { Closet } from "./pages/Closet.tsx";
 import { EventDetail } from "./pages/EventDetail.tsx";
 import { Templates } from "./pages/Templates.tsx";
+import { Roster } from "./pages/Roster.tsx";
 
 const ACTIVE_SCOUT_KEY = "scoutpack.activeScoutId";
 
@@ -68,6 +69,12 @@ export function App() {
         {route.kind === "templates" && me.role !== "leader" && (
           <div className="error">Leaders only.</div>
         )}
+        {route.kind === "roster" && me.role === "leader" && (
+          <Roster meEmail={me.email} />
+        )}
+        {route.kind === "roster" && me.role !== "leader" && (
+          <div className="error">Leaders only.</div>
+        )}
       </main>
     </div>
   );
@@ -91,6 +98,7 @@ function Header({
         <a href="#/">Upcoming</a>
         <a href="#/closet">Closet</a>
         {me.role === "leader" && <a href="#/templates">Templates</a>}
+        {me.role === "leader" && <a href="#/roster">Roster</a>}
       </nav>
       <div className="profile-switcher">
         {me.scouts.length > 1 && (

@@ -17,6 +17,12 @@ import {
   listScouts,
 } from "./profiles.ts";
 import {
+  isValidPosition,
+  listRoster,
+  requireRoleManager,
+  setOverride,
+} from "./roster.ts";
+import {
   attachPackingStats,
   createPackingList,
   deleteClosetItem,
@@ -68,7 +74,51 @@ const handleError = (e: unknown) => {
 api.get("/me", async (c) => {
   const u = c.get("user");
   const scouts = await listScouts(c.env.DB, c.get("accountId"));
-  return c.json({ email: u.email, name: u.name, role: u.role, scouts });
+  return c.json({
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    override: u.override,
+    rosterPositions: u.rosterPositions,
+    scouts,
+  });
+});
+
+// ---- roster / roles ----
+// Leader-only: every known member with roster-derived positions + any override.
+api.get("/roster", async (c) => {
+  try {
+    requireRoleManager(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  return c.json(await listRoster(c.env.DB, c.env.ROSTER));
+});
+
+// Leader-only: set (or clear) a member's override. Body: { position: Position | null }.
+// Clearing reverts the member to roster-db / Access-group resolution.
+api.put("/roster/:email", async (c) => {
+  try {
+    requireRoleManager(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const email = decodeURIComponent(c.req.param("email")).trim();
+  if (!email || !email.includes("@")) return c.json(bad("a valid email is required"), 400);
+  const body = await c.req.json<{ position: string | null }>();
+  if (body.position !== null && !isValidPosition(body.position)) {
+    return c.json(bad("invalid position"), 400);
+  }
+  // Guard against self-lockout: a role manager can't set an override that would
+  // revoke their own leader access (it'd block them from ever undoing it).
+  const me = c.get("user");
+  if (email.toLowerCase() === me.email.toLowerCase() && body.position === "scout") {
+    return c.json(bad("you can't revoke your own leader access"), 400);
+  }
+  await setOverride(c.env.DB, email, body.position, me.email);
+  return c.json({ ok: true, email: email.toLowerCase(), override: body.position });
 });
 
 api.post("/me/scouts", async (c) => {

@@ -5,18 +5,21 @@ import { useEffect, useState } from "react";
 //   #/closet            closet for active scout
 //   #/event/:eventId    packing list for an event
 //   #/templates         leader-only template editor
+//   #/roster            leader-only roster / role editor
 
 export type Route =
   | { kind: "dashboard" }
   | { kind: "closet" }
   | { kind: "event"; eventId: string }
-  | { kind: "templates" };
+  | { kind: "templates" }
+  | { kind: "roster" };
 
 function parse(hash: string): Route {
   const path = hash.replace(/^#/, "") || "/";
   if (path === "/" || path === "") return { kind: "dashboard" };
   if (path === "/closet") return { kind: "closet" };
   if (path === "/templates") return { kind: "templates" };
+  if (path === "/roster") return { kind: "roster" };
   const m = /^\/event\/([^/]+)/.exec(path);
   if (m) return { kind: "event", eventId: decodeURIComponent(m[1]) };
   return { kind: "dashboard" };
