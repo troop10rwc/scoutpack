@@ -10,18 +10,21 @@ for the tech stack overview.
 
 Foundational types (`Role`, `Position`, `LEADER_POSITIONS`, `Identity`) come
 from `@troop10rwc/shared`, which publishes to **GitHub Packages** (not npmjs).
-GitHub Packages' npm registry has no anonymous access, so installing requires a
-token. Copy `.npmrc.example` to `.npmrc` (the real `.npmrc` is gitignored), then
-put a classic GitHub PAT with `read:packages` scope into your user-level
-`~/.npmrc`:
+The repo's `.npmrc` only sets the registry mapping; the **auth line lives in
+your user-level `~/.npmrc`** (or `NPM_TOKEN` env for CI) — put a classic GitHub
+PAT with `read:packages` scope there:
 
 ```
+# ~/.npmrc
 //npm.pkg.github.com/:_authToken=ghp_yourTokenHere
 ```
 
-CI uses `NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}`. Cloudflare's git-integrated
-build needs `NPM_TOKEN` set as a build variable in the Worker's dashboard or
-production deploys fail with 401.
+For Cloudflare's git-integrated build, set the build environment variable
+`NPM_CONFIG_//NPM.PKG.GITHUB.COM/:_AUTHTOKEN` to a PAT with `read:packages` on
+the Worker's dashboard — npm picks up registry settings from `NPM_CONFIG_*`
+env vars without needing to write to `.npmrc`. GitHub Actions can either set
+the same variable, or use `actions/setup-node@v4` with a `registry-url` +
+`always-auth: true` (which writes its own `.npmrc` at job start).
 
 ```bash
 npm install
