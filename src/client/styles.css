@@ -144,8 +144,76 @@ th { background: #f0ede4; }
 .actions { margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; }
 .saved { color: var(--accent); }
 
+/* Closet — LighterPack-style view */
+.closet .pack-summary {
+  display: flex;
+  gap: 2.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 1rem 0 2rem;
+}
+.closet .donut { flex: 0 0 auto; }
+.closet .legend { width: auto; background: transparent; border-collapse: collapse; }
+.closet .legend th,
+.closet .legend td {
+  border: none;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+}
+.closet .legend thead th { color: var(--muted); font-weight: 600; }
+.closet .legend tfoot td { font-weight: 600; padding-top: 0.3rem; }
+.closet .legend tfoot tr.grand td { border-top: 1px solid var(--border); }
+
+.swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 2px;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.closet section.category h2 {
+  display: flex;
+  align-items: center;
+  font-size: 1.15rem;
+  margin: 1.75rem 0 0.4rem;
+}
+.closet table { background: transparent; }
+.closet th {
+  background: transparent;
+  border-bottom: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.closet td { border-bottom: 1px dotted var(--border); }
+.closet td.desc { color: var(--muted); }
+.closet td.num, .closet th.num { text-align: right; white-space: nowrap; }
+.closet td.del, .closet th.del { width: 2rem; text-align: right; }
+.closet tfoot td {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+.closet .flags { white-space: nowrap; }
+button.icon {
+  background: transparent;
+  color: var(--muted);
+  padding: 0 0.3rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+button.icon:hover { color: var(--warn); filter: none; }
+
+.closet-tools {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
 /* Closet import (LighterPack) */
-.import { margin: 1.5rem 0; }
+.import { margin: 1.5rem 0 0; }
 .import .import-url { flex: 1; min-width: 16rem; }
 .import-preview { margin-top: 0.75rem; }
 .import-preview tr.skipped { opacity: 0.45; }

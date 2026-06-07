@@ -116,9 +116,11 @@ function toGrams(value: number, unit: string): number | null {
   return Math.round(value * factor);
 }
 
+// LighterPack marks these columns with the literal words "Worn"/"Consumable"
+// (other exports use 1/true/yes/x). Treat any non-empty, non-zero value as set.
 function truthy(v: string): boolean {
   const s = v.trim().toLowerCase();
-  return s === "1" || s === "true" || s === "yes" || s === "x";
+  return s !== "" && s !== "0" && s !== "false" && s !== "no";
 }
 
 // Map header names (case-insensitive) to column indices, so we tolerate column

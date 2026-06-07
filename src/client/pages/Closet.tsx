@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.ts";
 import type { ClosetItem, ImportPreviewItem, Scout } from "../../shared/types.ts";
 
@@ -13,6 +13,17 @@ const BLANK: Partial<ClosetItem> = {
   is_consumable: 0,
 };
 
+// Distinct, stable palette for category color-coding (donut + legend + section
+// swatches), assigned by the category's alphabetical position.
+const PALETTE = [
+  "#4f86c6", "#e8833a", "#cc3333", "#e0c020", "#a8d24a",
+  "#4f9d3a", "#7e3ff2", "#39a0a0", "#d23a8a", "#9c6b3f",
+  "#3a6ed2", "#7a7a7a",
+];
+
+const weightOf = (it: ClosetItem) => (it.weight_grams ?? 0) * it.quantity;
+const kg = (grams: number) => `${(grams / 1000).toFixed(2)} kg`;
+
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
   const [draft, setDraft] = useState<Partial<ClosetItem>>(BLANK);
@@ -22,6 +33,14 @@ export function Closet({ scout }: { scout: Scout }) {
     setItems(null);
     api.listCloset(scout.id).then(setItems).catch((e: Error) => setErr(e.message));
   }, [scout.id]);
+
+  // Categories in alphabetical order, used for color assignment + section order.
+  const categories = useMemo(
+    () => [...new Set((items ?? []).map((i) => i.category))].sort((a, b) => a.localeCompare(b)),
+    [items],
+  );
+  const colorFor = (cat: string) =>
+    PALETTE[Math.max(0, categories.indexOf(cat)) % PALETTE.length];
 
   async function add() {
     if (!draft.name?.trim() || !draft.category?.trim()) return;
@@ -58,113 +77,235 @@ export function Closet({ scout }: { scout: Scout }) {
     <div className="closet">
       <h1>{scout.display_name}'s closet</h1>
 
-      <section className="add-item">
-        <h2>Add item</h2>
-        <div className="row">
-          <input
-            placeholder="Name"
-            value={draft.name ?? ""}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-          />
-          <input
-            placeholder="Category"
-            value={draft.category ?? ""}
-            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-          />
-          <input
-            placeholder="Brand"
-            value={draft.brand ?? ""}
-            onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
-          />
-          <input
-            placeholder="Weight (g)"
-            type="number"
-            value={draft.weight_grams ?? ""}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                weight_grams: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-          />
-          <input
-            placeholder="Qty"
-            type="number"
-            min={1}
-            value={draft.quantity ?? 1}
-            onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={!!draft.is_worn}
-              onChange={(e) => setDraft({ ...draft, is_worn: e.target.checked ? 1 : 0 })}
-            />
-            worn
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={!!draft.is_consumable}
-              onChange={(e) =>
-                setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })
-              }
-            />
-            consumable
-          </label>
-          <button onClick={add}>Add</button>
-        </div>
-      </section>
+      {items.length > 0 && <PackSummary items={items} colorFor={colorFor} />}
 
-      <ImportSection
-        scout={scout}
-        onImported={(created) => setItems((items) => [...(items ?? []), ...created])}
-      />
-
-      {[...byCategory.entries()].map(([cat, list]) => {
-        const totalGrams = list.reduce(
-          (acc, it) => acc + (it.weight_grams ?? 0) * it.quantity,
-          0,
-        );
+      {categories.map((cat) => {
+        const list = byCategory.get(cat) ?? [];
+        const subtotal = list.reduce((acc, it) => acc + weightOf(it), 0);
+        const count = list.reduce((acc, it) => acc + it.quantity, 0);
         return (
           <section key={cat} className="category">
             <h2>
-              {cat} <small>{(totalGrams / 1000).toFixed(2)} kg</small>
+              <span className="swatch" style={{ background: colorFor(cat) }} />
+              {cat}
             </h2>
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Brand</th>
-                  <th>Weight</th>
-                  <th>Qty</th>
-                  <th>Flags</th>
-                  <th></th>
+                  <th className="name"></th>
+                  <th className="desc"></th>
+                  <th className="flags"></th>
+                  <th className="num">Weight</th>
+                  <th className="num">qty</th>
+                  <th className="del"></th>
                 </tr>
               </thead>
               <tbody>
                 {list.map((it) => (
                   <tr key={it.id}>
-                    <td>{it.name}</td>
-                    <td>{it.brand ?? ""}</td>
-                    <td>{it.weight_grams ? `${it.weight_grams} g` : ""}</td>
-                    <td>{it.quantity}</td>
-                    <td>
-                      {it.is_worn ? "worn " : ""}
-                      {it.is_consumable ? "consumable" : ""}
+                    <td className="name">{it.name}</td>
+                    <td className="desc">{it.description ?? it.brand ?? ""}</td>
+                    <td className="flags">
+                      {it.is_worn ? <span className="tag">worn</span> : null}
+                      {it.is_consumable ? <span className="tag">consumable</span> : null}
                     </td>
-                    <td>
-                      <button onClick={() => remove(it.id)}>×</button>
+                    <td className="num">{it.weight_grams ? `${it.weight_grams} g` : ""}</td>
+                    <td className="num">{it.quantity}</td>
+                    <td className="del">
+                      <button className="icon" onClick={() => remove(it.id)} title="Delete">
+                        ×
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3}></td>
+                  <td className="num">{kg(subtotal)}</td>
+                  <td className="num">{count}</td>
+                  <td className="del"></td>
+                </tr>
+              </tfoot>
             </table>
           </section>
         );
       })}
-      {!items.length && <p className="empty">No items yet. Add gear you own above.</p>}
+      {!items.length && <p className="empty">No items yet. Add gear you own below.</p>}
+
+      <div className="closet-tools">
+        <section className="add-item">
+          <h2>Add gear</h2>
+          <div className="row">
+            <input
+              placeholder="Name"
+              value={draft.name ?? ""}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            />
+            <input
+              placeholder="Category"
+              value={draft.category ?? ""}
+              onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+            />
+            <input
+              placeholder="Brand"
+              value={draft.brand ?? ""}
+              onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
+            />
+            <input
+              placeholder="Weight (g)"
+              type="number"
+              value={draft.weight_grams ?? ""}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  weight_grams: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+            />
+            <input
+              placeholder="Qty"
+              type="number"
+              min={1}
+              value={draft.quantity ?? 1}
+              onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={!!draft.is_worn}
+                onChange={(e) => setDraft({ ...draft, is_worn: e.target.checked ? 1 : 0 })}
+              />
+              worn
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={!!draft.is_consumable}
+                onChange={(e) =>
+                  setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })
+                }
+              />
+              consumable
+            </label>
+            <button onClick={add}>Add</button>
+          </div>
+        </section>
+
+        <ImportSection
+          scout={scout}
+          onImported={(created) => setItems((items) => [...(items ?? []), ...created])}
+        />
+      </div>
     </div>
+  );
+}
+
+function PackSummary({
+  items,
+  colorFor,
+}: {
+  items: ClosetItem[];
+  colorFor: (cat: string) => string;
+}) {
+  const catTotals = new Map<string, number>();
+  for (const it of items) {
+    catTotals.set(it.category, (catTotals.get(it.category) ?? 0) + weightOf(it));
+  }
+  const cats = [...catTotals.keys()].sort((a, b) => a.localeCompare(b));
+  const total = items.reduce((a, it) => a + weightOf(it), 0);
+  const worn = items.filter((i) => i.is_worn).reduce((a, it) => a + weightOf(it), 0);
+  const consumable = items
+    .filter((i) => i.is_consumable)
+    .reduce((a, it) => a + weightOf(it), 0);
+  const base = total - worn - consumable;
+
+  const segments = cats.map((c) => ({ color: colorFor(c), value: catTotals.get(c) ?? 0 }));
+
+  return (
+    <section className="pack-summary">
+      <Donut segments={segments} />
+      <table className="legend">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th className="num">Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cats.map((c) => (
+            <tr key={c}>
+              <td>
+                <span className="swatch" style={{ background: colorFor(c) }} />
+                {c}
+              </td>
+              <td className="num">{kg(catTotals.get(c) ?? 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="grand">
+            <td>Total</td>
+            <td className="num">{kg(total)}</td>
+          </tr>
+          <tr>
+            <td>Consumable</td>
+            <td className="num">{kg(consumable)}</td>
+          </tr>
+          <tr>
+            <td>Worn</td>
+            <td className="num">{kg(worn)}</td>
+          </tr>
+          <tr className="grand">
+            <td>Base Weight</td>
+            <td className="num">{kg(base)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  );
+}
+
+// Pure-SVG donut chart: one stroked arc per category, sized by weight share.
+function Donut({ segments }: { segments: { color: string; value: number }[] }) {
+  const r = 80;
+  const cx = 100;
+  const cy = 100;
+  const circumference = 2 * Math.PI * r;
+  const total = segments.reduce((a, s) => a + s.value, 0);
+  const gap = total > 0 ? 2 : 0; // small white gap between segments
+  let offset = 0;
+
+  return (
+    <svg viewBox="0 0 200 200" width={180} height={180} className="donut">
+      <g transform="rotate(-90 100 100)">
+        {total === 0 ? (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e5e5e5" strokeWidth={38} />
+        ) : (
+          segments
+            .filter((s) => s.value > 0)
+            .map((s, i) => {
+              const len = (s.value / total) * circumference;
+              const dash = Math.max(len - gap, 0.0001);
+              const el = (
+                <circle
+                  key={i}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={38}
+                  strokeDasharray={`${dash} ${circumference - dash}`}
+                  strokeDashoffset={-offset}
+                />
+              );
+              offset += len;
+              return el;
+            })
+        )}
+      </g>
+    </svg>
   );
 }
 
@@ -268,8 +409,8 @@ function ImportSection({
                     <th></th>
                     <th>Name</th>
                     <th>Category</th>
-                    <th>Weight</th>
-                    <th>Qty</th>
+                    <th className="num">Weight</th>
+                    <th className="num">Qty</th>
                     <th>Flags</th>
                   </tr>
                 </thead>
@@ -288,8 +429,8 @@ function ImportSection({
                         {r.duplicate && <span className="tag dup">duplicate</span>}
                       </td>
                       <td>{r.category}</td>
-                      <td>{r.weight_grams ? `${r.weight_grams} g` : ""}</td>
-                      <td>{r.quantity}</td>
+                      <td className="num">{r.weight_grams ? `${r.weight_grams} g` : ""}</td>
+                      <td className="num">{r.quantity}</td>
                       <td>
                         {r.is_worn ? "worn " : ""}
                         {r.is_consumable ? "consumable" : ""}
