@@ -21,13 +21,32 @@ const PALETTE = [
   "#3a6ed2", "#7a7a7a",
 ];
 
+type Unit = "metric" | "imperial";
+
 const weightOf = (it: ClosetItem) => (it.weight_grams ?? 0) * it.quantity;
-const kg = (grams: number) => `${(grams / 1000).toFixed(2)} kg`;
+// Per-item weight (small): grams or ounces. Subtotals/totals (big): kg or lb.
+const fmtItem = (grams: number, unit: Unit) =>
+  unit === "imperial" ? `${(grams / 28.3495).toFixed(1)} oz` : `${grams} g`;
+const fmtBig = (grams: number, unit: Unit) =>
+  unit === "imperial" ? `${(grams / 453.592).toFixed(2)} lb` : `${(grams / 1000).toFixed(2)} kg`;
 
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
   const [draft, setDraft] = useState<Partial<ClosetItem>>(BLANK);
   const [err, setErr] = useState<string | null>(null);
+  const [unit, setUnit] = useState<Unit>(() =>
+    typeof localStorage !== "undefined" && localStorage.getItem("closet-unit") === "imperial"
+      ? "imperial"
+      : "metric",
+  );
+  function changeUnit(u: Unit) {
+    setUnit(u);
+    try {
+      localStorage.setItem("closet-unit", u);
+    } catch {
+      /* ignore storage failures (private mode) */
+    }
+  }
 
   useEffect(() => {
     setItems(null);
@@ -75,9 +94,25 @@ export function Closet({ scout }: { scout: Scout }) {
 
   return (
     <div className="closet">
-      <h1>{scout.display_name}'s closet</h1>
+      <div className="closet-header">
+        <h1>{scout.display_name}'s closet</h1>
+        <div className="unit-toggle">
+          <button
+            className={unit === "metric" ? "active" : ""}
+            onClick={() => changeUnit("metric")}
+          >
+            Metric
+          </button>
+          <button
+            className={unit === "imperial" ? "active" : ""}
+            onClick={() => changeUnit("imperial")}
+          >
+            Imperial
+          </button>
+        </div>
+      </div>
 
-      {items.length > 0 && <PackSummary items={items} colorFor={colorFor} />}
+      {items.length > 0 && <PackSummary items={items} colorFor={colorFor} unit={unit} />}
 
       {categories.map((cat) => {
         const list = byCategory.get(cat) ?? [];
@@ -109,7 +144,9 @@ export function Closet({ scout }: { scout: Scout }) {
                       {it.is_worn ? <span className="tag">worn</span> : null}
                       {it.is_consumable ? <span className="tag">consumable</span> : null}
                     </td>
-                    <td className="num">{it.weight_grams ? `${it.weight_grams} g` : ""}</td>
+                    <td className="num">
+                      {it.weight_grams ? fmtItem(it.weight_grams, unit) : ""}
+                    </td>
                     <td className="num">{it.quantity}</td>
                     <td className="del">
                       <button className="icon" onClick={() => remove(it.id)} title="Delete">
@@ -122,7 +159,7 @@ export function Closet({ scout }: { scout: Scout }) {
               <tfoot>
                 <tr>
                   <td colSpan={3}></td>
-                  <td className="num">{kg(subtotal)}</td>
+                  <td className="num">{fmtBig(subtotal, unit)}</td>
                   <td className="num">{count}</td>
                   <td className="del"></td>
                 </tr>
@@ -204,9 +241,11 @@ export function Closet({ scout }: { scout: Scout }) {
 function PackSummary({
   items,
   colorFor,
+  unit,
 }: {
   items: ClosetItem[];
   colorFor: (cat: string) => string;
+  unit: Unit;
 }) {
   const catTotals = new Map<string, number>();
   for (const it of items) {
@@ -239,26 +278,26 @@ function PackSummary({
                 <span className="swatch" style={{ background: colorFor(c) }} />
                 {c}
               </td>
-              <td className="num">{kg(catTotals.get(c) ?? 0)}</td>
+              <td className="num">{fmtBig(catTotals.get(c) ?? 0, unit)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="grand">
             <td>Total</td>
-            <td className="num">{kg(total)}</td>
+            <td className="num">{fmtBig(total, unit)}</td>
           </tr>
           <tr>
             <td>Consumable</td>
-            <td className="num">{kg(consumable)}</td>
+            <td className="num">{fmtBig(consumable, unit)}</td>
           </tr>
           <tr>
             <td>Worn</td>
-            <td className="num">{kg(worn)}</td>
+            <td className="num">{fmtBig(worn, unit)}</td>
           </tr>
           <tr className="grand">
             <td>Base Weight</td>
-            <td className="num">{kg(base)}</td>
+            <td className="num">{fmtBig(base, unit)}</td>
           </tr>
         </tfoot>
       </table>

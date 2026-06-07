@@ -145,6 +145,26 @@ th { background: #f0ede4; }
 .saved { color: var(--accent); }
 
 /* Closet — LighterPack-style view */
+.closet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.unit-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.unit-toggle button {
+  background: var(--card);
+  color: var(--muted);
+  border: none;
+  border-radius: 0;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+}
+.unit-toggle button:hover { filter: none; background: var(--bg); }
+.unit-toggle button.active { background: var(--accent); color: #fff; }
+.unit-toggle button.active:hover { background: var(--accent); }
+
 .closet .pack-summary {
   display: flex;
   gap: 2.5rem;
