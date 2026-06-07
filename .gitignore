@@ -2,6 +2,7 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+.npmrc
 *.tsbuildinfo
 worker-configuration.d.ts
 .DS_Store

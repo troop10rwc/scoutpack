@@ -8,6 +8,21 @@ for the tech stack overview.
 
 ## Setup
 
+Foundational types (`Role`, `Position`, `LEADER_POSITIONS`, `Identity`) come
+from `@troop10rwc/shared`, which publishes to **GitHub Packages** (not npmjs).
+GitHub Packages' npm registry has no anonymous access, so installing requires a
+token. Copy `.npmrc.example` to `.npmrc` (the real `.npmrc` is gitignored), then
+put a classic GitHub PAT with `read:packages` scope into your user-level
+`~/.npmrc`:
+
+```
+//npm.pkg.github.com/:_authToken=ghp_yourTokenHere
+```
+
+CI uses `NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}`. Cloudflare's git-integrated
+build needs `NPM_TOKEN` set as a build variable in the Worker's dashboard or
+production deploys fail with 401.
+
 ```bash
 npm install
 # One-time: create the gear database in Cloudflare.
