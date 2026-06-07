@@ -19,12 +19,19 @@ PAT with `read:packages` scope there:
 //npm.pkg.github.com/:_authToken=ghp_yourTokenHere
 ```
 
-For Cloudflare's git-integrated build, set the build environment variable
-`NPM_CONFIG_//NPM.PKG.GITHUB.COM/:_AUTHTOKEN` to a PAT with `read:packages` on
-the Worker's dashboard — npm picks up registry settings from `NPM_CONFIG_*`
-env vars without needing to write to `.npmrc`. GitHub Actions can either set
-the same variable, or use `actions/setup-node@v4` with a `registry-url` +
-`always-auth: true` (which writes its own `.npmrc` at job start).
+For Cloudflare's git-integrated build, set `NPM_TOKEN` as a build environment
+variable (classic PAT with `read:packages`) on the Worker's dashboard, then set
+the **build command** to:
+
+```bash
+echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && npm ci && npm run build
+```
+
+The committed `.npmrc` provides the registry mapping; the build command writes
+the auth line from `$NPM_TOKEN` at build time (the token never lands in any
+committed file). GitHub Actions can either run the same one-liner or use
+`actions/setup-node@v4` with `registry-url` + `always-auth: true` (which writes
+its own `.npmrc` at job start).
 
 ```bash
 npm install
