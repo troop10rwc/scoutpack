@@ -8,6 +8,30 @@ for the tech stack overview.
 
 ## Setup
 
+Foundational types (`Role`, `Position`, `LEADER_POSITIONS`, `Identity`) come
+from `@troop10rwc/shared`, which publishes to **GitHub Packages** (not npmjs).
+The committed `.npmrc` sets the registry and interpolates the auth token from
+the `NPM_TOKEN` environment variable — so every environment provides the token
+the same way: as a `read:packages`-scoped classic GitHub PAT in `$NPM_TOKEN`.
+
+**Local dev** — export it from your shell profile, e.g. `~/.zshrc`:
+
+```bash
+export NPM_TOKEN=ghp_yourTokenHere
+```
+
+(Or use `direnv` with a gitignored `.envrc`.) A token sitting only in
+`~/.npmrc` will *not* work — the repo `.npmrc` interpolates `${NPM_TOKEN}` to
+empty/literal and the registry rejects with 401.
+
+**Cloudflare's git-integrated build** — add `NPM_TOKEN` as a build env var
+(secret) on the Worker's dashboard. No build-command customization needed;
+Cloudflare's auto `npm clean-install` reads the repo `.npmrc` and picks up the
+token via env interpolation.
+
+**GitHub Actions** — set `NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the job,
+or use `actions/setup-node@v4` with `registry-url` + `always-auth: true`.
+
 ```bash
 npm install
 # One-time: create the gear database in Cloudflare.

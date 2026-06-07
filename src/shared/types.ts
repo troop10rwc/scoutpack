@@ -1,28 +1,28 @@
 import type { EventType } from "./constants.ts";
+// Foundational role types come from the shared kit so every troop10rwc app
+// agrees on Role / Position / LEADER_POSITIONS. We extend Identity locally
+// with the resolved role + roster/override context the kit doesn't model yet.
+import {
+  LEADER_POSITIONS as KIT_LEADER_POSITIONS,
+  type Identity as KitIdentity,
+  type Position,
+  type Role,
+} from "@troop10rwc/shared";
 
-export type Role = "scout" | "leader";
+export type { Role, Position };
+export const LEADER_POSITIONS = KIT_LEADER_POSITIONS;
 
 // Role resolution has three layers, highest precedence first:
-//   1. An explicit OVERRIDE in scoutpack's member_roles table (Position below).
+//   1. An explicit OVERRIDE in scoutpack's member_roles table (Position above).
 //   2. The member's POSITIONS in the external roster DB (BSA titles), matched
 //      by email. Holding any LEADER_ROSTER_POSITION confers leader.
 //   3. The Cloudflare Access LEADER_GROUP claim (bootstrap fallback).
 // See src/worker/roster.ts (resolution) and src/worker/rosterdb.ts (roster DB).
 
-// Manual override values an admin can assign in member_roles. These are NOT the
-// BSA titles — they're a small capability vocabulary layered on top of the
-// roster. The five leadership values confer leader; `scout` force-demotes a
-// member who would otherwise be a leader via the roster or the Access group.
-export const POSITIONS = [
-  "scoutmaster",
-  "assistant_scoutmaster",
-  "crew_advisor",
-  "assistant_crew_advisor",
-  "senior_patrol_leader",
-  "scout",
-] as const;
-
-export type Position = (typeof POSITIONS)[number];
+// Display-ordered Position values, including `scout` as the force-revoke value.
+// The kit's LEADER_POSITIONS covers the five leadership values; appending
+// `scout` keeps the UI's option order stable.
+export const POSITIONS = [...LEADER_POSITIONS, "scout"] as const satisfies readonly Position[];
 
 export const POSITION_LABELS: Record<Position, string> = {
   scoutmaster: "Scoutmaster",
@@ -32,15 +32,6 @@ export const POSITION_LABELS: Record<Position, string> = {
   senior_patrol_leader: "Senior Patrol Leader",
   scout: "Scout",
 };
-
-// Override values that confer leader capabilities. `scout` does not.
-export const LEADER_POSITIONS: readonly Position[] = [
-  "scoutmaster",
-  "assistant_scoutmaster",
-  "crew_advisor",
-  "assistant_crew_advisor",
-  "senior_patrol_leader",
-];
 
 // BSA position titles (as stored in roster-db's `positions` JSON arrays) that
 // confer leader access. Matched case-insensitively. Troop Admin is included as
@@ -54,9 +45,10 @@ export const LEADER_ROSTER_POSITIONS = [
   "Troop Admin",
 ] as const;
 
-export interface Identity {
-  email: string;
-  name: string;
+// The kit's Identity carries just the verified Access subject (email + name).
+// Scoutpack's resolved identity layers the effective role and the inputs that
+// produced it (manual override + roster-derived positions).
+export interface Identity extends KitIdentity {
   role: Role;
   // Manual override from member_roles, if any (null => no override row).
   override: Position | null;

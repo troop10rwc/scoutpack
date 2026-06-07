@@ -10,7 +10,9 @@ import { getAllRosterPositions, getRosterPositions, hasLeaderPosition } from "./
 // See migrations/0005_member_roles.sql and src/worker/rosterdb.ts.
 
 function overrideIsLeader(p: Position): boolean {
-  return LEADER_POSITIONS.includes(p);
+  // LEADER_POSITIONS is a narrow tuple from @troop10rwc/shared that excludes
+  // "scout"; widen the readonly element type for the membership check.
+  return (LEADER_POSITIONS as readonly Position[]).includes(p);
 }
 
 export function isValidPosition(p: unknown): p is Position {
