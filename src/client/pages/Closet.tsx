@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Button,
+  ChangesetReview,
+  EmptyState,
+  Field,
+  SectionLabel,
+  StatusPill,
+  type Change,
+} from "@troop10rwc/ui";
 import { api } from "../api.ts";
+import { usePageChrome } from "../chrome.tsx";
 import type { ClosetItem, ImportPreviewItem, Scout } from "../../shared/types.ts";
 
 const BLANK: Partial<ClosetItem> = {
@@ -13,8 +23,9 @@ const BLANK: Partial<ClosetItem> = {
   is_consumable: 0,
 };
 
-// Distinct, stable palette for category color-coding (donut + legend + section
-// swatches), assigned by the category's alphabetical position.
+// Distinct categorical palette for the donut + legend + section swatches, keyed
+// by the category's alphabetical position. This is data-viz: a chart legitimately
+// needs N distinguishable hues, which no single semantic token provides.
 const PALETTE = [
   "#4f86c6", "#e8833a", "#cc3333", "#e0c020", "#a8d24a",
   "#4f9d3a", "#7e3ff2", "#39a0a0", "#d23a8a", "#9c6b3f",
@@ -43,6 +54,21 @@ export function Closet({ scout }: { scout: Scout }) {
   // Hidden file input shared by every row's camera button.
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<string | null>(null);
+
+  const totalGrams = (items ?? []).reduce((a, it) => a + weightOf(it), 0);
+  usePageChrome(
+    {
+      title: `${scout.display_name}'s closet`,
+      subtitle: `${items?.length ?? 0} items · ${fmtBig(totalGrams, unit)}`,
+      actions: (
+        <div className="sp-unit" role="group" aria-label="Weight unit">
+          <Button size="sm" variant={unit === "metric" ? "default" : "ghost"} onClick={() => changeUnit("metric")}>Metric</Button>
+          <Button size="sm" variant={unit === "imperial" ? "default" : "ghost"} onClick={() => changeUnit("imperial")}>Imperial</Button>
+        </div>
+      ),
+    },
+    [scout.display_name, items?.length, totalGrams, unit],
+  );
 
   useEffect(() => {
     setItems(null);
@@ -166,8 +192,8 @@ export function Closet({ scout }: { scout: Scout }) {
     });
   }
 
-  if (err) return <div className="error">{err}</div>;
-  if (!items) return <div className="loading">Loading closet…</div>;
+  if (err) return <EmptyState>{err}</EmptyState>;
+  if (!items) return <EmptyState>Loading closet…</EmptyState>;
 
   const byCategory = new Map<string, ClosetItem[]>();
   for (const it of items) {
@@ -177,7 +203,7 @@ export function Closet({ scout }: { scout: Scout }) {
   }
 
   return (
-    <div className="closet">
+    <div className="sp-page sp-closet">
       <input
         ref={fileRef}
         type="file"
@@ -185,24 +211,6 @@ export function Closet({ scout }: { scout: Scout }) {
         style={{ display: "none" }}
         onChange={onFileChosen}
       />
-
-      <div className="closet-header">
-        <h1>{scout.display_name}'s closet</h1>
-        <div className="unit-toggle">
-          <button
-            className={unit === "metric" ? "active" : ""}
-            onClick={() => changeUnit("metric")}
-          >
-            Metric
-          </button>
-          <button
-            className={unit === "imperial" ? "active" : ""}
-            onClick={() => changeUnit("imperial")}
-          >
-            Imperial
-          </button>
-        </div>
-      </div>
 
       {items.length > 0 && <PackSummary items={items} colorFor={colorFor} unit={unit} />}
 
@@ -213,24 +221,25 @@ export function Closet({ scout }: { scout: Scout }) {
         return (
           <section
             key={cat}
-            className="category"
+            className="sp-cat"
             onDragOver={(e) => dragId && e.preventDefault()}
             onDrop={() => dragId && dropOn(cat, null)}
           >
-            <h2>
-              <span className="swatch" style={{ background: colorFor(cat) }} />
+            <h2 className="sp-cat__head">
+              <span className="sp-swatch" style={{ background: colorFor(cat) }} />
               {cat}
             </h2>
-            <table className="gear-table">
+            <div className="sp-gearwrap">
+            <table className="sp-gear">
               <thead>
                 <tr>
-                  <th className="grip"></th>
-                  <th className="name"></th>
-                  <th className="desc"></th>
-                  <th className="acts"></th>
-                  <th className="num">Weight</th>
-                  <th className="num">qty</th>
-                  <th className="del"></th>
+                  <th className="sp-gear__grip"></th>
+                  <th className="sp-gear__name">Item</th>
+                  <th>Description</th>
+                  <th></th>
+                  <th className="is-right">Weight</th>
+                  <th className="is-right">Qty</th>
+                  <th className="sp-gear__del"></th>
                 </tr>
               </thead>
               <tbody>
@@ -268,55 +277,49 @@ export function Closet({ scout }: { scout: Scout }) {
               <tfoot>
                 <tr>
                   <td colSpan={4}></td>
-                  <td className="num">{fmtBig(subtotal, unit)}</td>
-                  <td className="num">{count}</td>
-                  <td className="del"></td>
+                  <td className="is-right t10-num">{fmtBig(subtotal, unit)}</td>
+                  <td className="is-right t10-num">{count}</td>
+                  <td className="sp-gear__del"></td>
                 </tr>
               </tfoot>
             </table>
+            </div>
           </section>
         );
       })}
-      {!items.length && <p className="empty">No items yet. Add gear you own below.</p>}
+      {!items.length && <EmptyState>No items yet. Add gear you own below.</EmptyState>}
 
-      <div className="closet-tools">
-        <section className="add-item">
-          <h2>Add gear</h2>
-          <div className="row">
-            <input
-              placeholder="Name"
-              value={draft.name ?? ""}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-            <input
-              placeholder="Category"
-              value={draft.category ?? ""}
-              onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-            />
-            <input
-              placeholder="Brand"
-              value={draft.brand ?? ""}
-              onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
-            />
-            <input
-              placeholder="Weight (g)"
-              type="number"
-              value={draft.weight_grams ?? ""}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  weight_grams: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            />
-            <input
-              placeholder="Qty"
-              type="number"
-              min={1}
-              value={draft.quantity ?? 1}
-              onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
-            />
-            <label>
+      <div className="sp-tools">
+        <section>
+          <SectionLabel>Add gear</SectionLabel>
+          <div className="sp-addrow">
+            <Field label="Name">
+              <input value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            </Field>
+            <Field label="Category">
+              <input value={draft.category ?? ""} onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
+            </Field>
+            <Field label="Brand">
+              <input value={draft.brand ?? ""} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} />
+            </Field>
+            <Field label="Weight" hint="g">
+              <input
+                type="number"
+                value={draft.weight_grams ?? ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, weight_grams: e.target.value ? Number(e.target.value) : null })
+                }
+              />
+            </Field>
+            <Field label="Qty">
+              <input
+                type="number"
+                min={1}
+                value={draft.quantity ?? 1}
+                onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
+              />
+            </Field>
+            <label className="sp-check">
               <input
                 type="checkbox"
                 checked={!!draft.is_worn}
@@ -324,17 +327,15 @@ export function Closet({ scout }: { scout: Scout }) {
               />
               worn
             </label>
-            <label>
+            <label className="sp-check">
               <input
                 type="checkbox"
                 checked={!!draft.is_consumable}
-                onChange={(e) =>
-                  setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })
-                }
+                onChange={(e) => setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })}
               />
               consumable
             </label>
-            <button onClick={add}>Add</button>
+            <Button variant="primary" onClick={add}>Add</Button>
           </div>
         </section>
 
@@ -388,14 +389,14 @@ function GearRow({
   return (
     <>
       <tr
-        className={dragOver ? "drag-over" : ""}
+        className={dragOver ? "is-dragover" : ""}
         onDragOver={(e) => e.preventDefault()}
         onDragEnter={onDragEnter}
         onDrop={onDrop}
       >
-        <td className="grip">
+        <td className="sp-gear__grip">
           <span
-            className="grip-handle"
+            className="sp-grip"
             draggable
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
@@ -404,73 +405,69 @@ function GearRow({
             ⠿
           </span>
         </td>
-        <td className="name">
+        <td>
           <input
-            className="cell-edit"
+            className="sp-cell"
             value={item.name}
             onChange={(e) => onEditLocal({ name: e.target.value })}
             onBlur={(e) => onPatch({ name: e.target.value.trim() || item.name })}
           />
         </td>
-        <td className="desc">
+        <td>
           <input
-            className="cell-edit"
+            className="sp-cell sp-cell--soft"
             placeholder="description"
             value={item.description ?? ""}
             onChange={(e) => onEditLocal({ description: e.target.value })}
             onBlur={(e) => onPatch({ description: e.target.value || null })}
           />
         </td>
-        <td className="acts">
+        <td className="sp-gear__acts">
           {imageUrl ? (
-            <span className="thumb-wrap">
-              <img className="thumb" src={imageUrl} alt="" onClick={onPickPhoto} title="Replace photo" />
-              <button className="thumb-x" onClick={onRemovePhoto} title="Remove photo">
-                ×
-              </button>
+            <span className="sp-thumbwrap">
+              <img className="sp-thumb" src={imageUrl} alt="" onClick={onPickPhoto} title="Replace photo" />
+              <button className="sp-thumb-x" onClick={onRemovePhoto} title="Remove photo">×</button>
             </span>
           ) : (
-            <button className="icon-btn" onClick={onPickPhoto} title="Add photo">
+            <button className="sp-iconbtn" onClick={onPickPhoto} title="Add photo">
               <Icon name="camera" />
             </button>
           )}
           <button
-            className={`icon-btn${item.link_url ? " on" : ""}`}
+            className={`sp-iconbtn${item.link_url ? " is-on" : ""}`}
             onClick={onLinkEdit}
             title={item.link_url ? "Edit link" : "Add link"}
           >
             <Icon name="link" />
           </button>
           {item.link_url && (
-            <a className="icon-btn open-link" href={item.link_url} target="_blank" rel="noreferrer" title="Open link">
-              ↗
-            </a>
+            <a className="sp-iconbtn sp-iconbtn--link" href={item.link_url} target="_blank" rel="noreferrer" title="Open link">↗</a>
           )}
           <button
-            className={`icon-btn${item.is_worn ? " on" : ""}`}
+            className={`sp-iconbtn${item.is_worn ? " is-on" : ""}`}
             onClick={() => onToggle({ is_worn: item.is_worn ? 0 : 1 })}
             title="Worn"
           >
             <Icon name="shirt" />
           </button>
           <button
-            className={`icon-btn${item.is_consumable ? " on" : ""}`}
+            className={`sp-iconbtn${item.is_consumable ? " is-on" : ""}`}
             onClick={() => onToggle({ is_consumable: item.is_consumable ? 0 : 1 })}
             title="Consumable"
           >
             <Icon name="utensils" />
           </button>
           <button
-            className={`icon-btn${item.is_favorite ? " on" : ""}`}
+            className={`sp-iconbtn${item.is_favorite ? " is-on" : ""}`}
             onClick={() => onToggle({ is_favorite: item.is_favorite ? 0 : 1 })}
             title="Favorite"
           >
             <Icon name="star" filled={!!item.is_favorite} />
           </button>
         </td>
-        <td className="num weight-cell">
+        <td className="is-right sp-gear__weight">
           <input
-            className="cell-edit num"
+            className="sp-cell t10-num"
             type="number"
             value={item.weight_grams ?? ""}
             onChange={(e) =>
@@ -480,11 +477,11 @@ function GearRow({
               onPatch({ weight_grams: e.target.value ? Number(e.target.value) : null })
             }
           />
-          <span className="unit-suffix">g</span>
+          <span className="sp-unit-suffix">g</span>
         </td>
-        <td className="num">
+        <td className="is-right">
           <input
-            className="cell-edit num qty"
+            className="sp-cell t10-num sp-gear__qty"
             type="number"
             min={1}
             value={item.quantity}
@@ -492,18 +489,16 @@ function GearRow({
             onBlur={(e) => onPatch({ quantity: Number(e.target.value) || 1 })}
           />
         </td>
-        <td className="del">
-          <button className="icon" onClick={onRemove} title="Delete item">
-            ×
-          </button>
+        <td className="sp-gear__del">
+          <button className="sp-iconbtn sp-iconbtn--del" onClick={onRemove} title="Delete item">×</button>
         </td>
       </tr>
       {linkEditing && (
-        <tr className="link-edit-row">
+        <tr className="sp-linkrow">
           <td></td>
           <td colSpan={6}>
             <input
-              className="cell-edit link-input"
+              className="sp-cell"
               autoFocus
               placeholder="https://… (Enter to save, Esc to cancel)"
               defaultValue={item.link_url ?? ""}
@@ -593,42 +588,42 @@ function PackSummary({
   const segments = cats.map((c) => ({ color: colorFor(c), value: catTotals.get(c) ?? 0 }));
 
   return (
-    <section className="pack-summary">
+    <section className="sp-summary">
       <Donut segments={segments} />
-      <table className="legend">
+      <table className="sp-legend">
         <thead>
           <tr>
             <th>Category</th>
-            <th className="num">Weight</th>
+            <th className="is-right">Weight</th>
           </tr>
         </thead>
         <tbody>
           {cats.map((c) => (
             <tr key={c}>
               <td>
-                <span className="swatch" style={{ background: colorFor(c) }} />
+                <span className="sp-swatch" style={{ background: colorFor(c) }} />
                 {c}
               </td>
-              <td className="num">{fmtBig(catTotals.get(c) ?? 0, unit)}</td>
+              <td className="is-right t10-num">{fmtBig(catTotals.get(c) ?? 0, unit)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="grand">
+          <tr className="sp-legend__rule">
             <td>Total</td>
-            <td className="num">{fmtBig(total, unit)}</td>
+            <td className="is-right t10-num">{fmtBig(total, unit)}</td>
           </tr>
           <tr>
             <td>Consumable</td>
-            <td className="num">{fmtBig(consumable, unit)}</td>
+            <td className="is-right t10-num">{fmtBig(consumable, unit)}</td>
           </tr>
           <tr>
             <td>Worn</td>
-            <td className="num">{fmtBig(worn, unit)}</td>
+            <td className="is-right t10-num">{fmtBig(worn, unit)}</td>
           </tr>
-          <tr className="grand">
+          <tr className="sp-legend__rule">
             <td>Base Weight</td>
-            <td className="num">{fmtBig(base, unit)}</td>
+            <td className="is-right t10-num">{fmtBig(base, unit)}</td>
           </tr>
         </tfoot>
       </table>
@@ -643,14 +638,14 @@ function Donut({ segments }: { segments: { color: string; value: number }[] }) {
   const cy = 100;
   const circumference = 2 * Math.PI * r;
   const total = segments.reduce((a, s) => a + s.value, 0);
-  const gap = total > 0 ? 2 : 0; // small white gap between segments
+  const gap = total > 0 ? 2 : 0; // small gap between segments
   let offset = 0;
 
   return (
-    <svg viewBox="0 0 200 200" width={180} height={180} className="donut">
+    <svg viewBox="0 0 200 200" width={180} height={180} className="sp-donut">
       <g transform="rotate(-90 100 100)">
         {total === 0 ? (
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e5e5e5" strokeWidth={38} />
+          <circle cx={cx} cy={cy} r={r} fill="none" style={{ stroke: "var(--t10-line)" }} strokeWidth={38} />
         ) : (
           segments
             .filter((s) => s.value > 0)
@@ -679,8 +674,6 @@ function Donut({ segments }: { segments: { color: string; value: number }[] }) {
   );
 }
 
-type PreviewRow = ImportPreviewItem & { include: boolean };
-
 function ImportSection({
   scout,
   onImported,
@@ -689,18 +682,24 @@ function ImportSection({
   onImported: (created: ClosetItem[]) => void;
 }) {
   const [url, setUrl] = useState("");
-  const [rows, setRows] = useState<PreviewRow[] | null>(null);
+  const [rows, setRows] = useState<ImportPreviewItem[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [applied, setApplied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Model 5: the import URL fans out into many row inserts, so it gets a
+  // reviewable changeset. Duplicates are excluded from the write and shown as
+  // skipped notes — the preview is the description of exactly what Apply does.
+  const importable = (rows ?? []).filter((r) => !r.duplicate);
 
   async function preview() {
     if (!url.trim()) return;
     setBusy(true);
     setErr(null);
+    setApplied(false);
     try {
       const { items } = await api.previewClosetImport(scout.id, url.trim());
-      // Duplicates default to off; everything else defaults to on.
-      setRows(items.map((it) => ({ ...it, include: !it.duplicate })));
+      setRows(items);
     } catch (e) {
       setErr((e as Error).message);
       setRows(null);
@@ -709,26 +708,14 @@ function ImportSection({
     }
   }
 
-  function toggle(idx: number) {
-    setRows((rows) =>
-      (rows ?? []).map((r, i) => (i === idx ? { ...r, include: !r.include } : r)),
-    );
-  }
-
-  function cancel() {
-    setRows(null);
-    setErr(null);
-  }
-
-  async function doImport() {
-    const chosen = (rows ?? []).filter((r) => r.include);
-    if (!chosen.length) return;
+  async function apply() {
+    if (!importable.length) return;
     setBusy(true);
     setErr(null);
     try {
       const { items } = await api.importCloset(
         scout.id,
-        chosen.map((r) => ({
+        importable.map((r) => ({
           name: r.name,
           category: r.category,
           description: r.description,
@@ -739,8 +726,7 @@ function ImportSection({
         })),
       );
       onImported(items);
-      setRows(null);
-      setUrl("");
+      setApplied(true);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -748,79 +734,67 @@ function ImportSection({
     }
   }
 
-  const selected = (rows ?? []).filter((r) => r.include).length;
+  function discard() {
+    setRows(null);
+    setUrl("");
+    setApplied(false);
+    setErr(null);
+  }
+
+  const changes: Change[] = (rows ?? []).map((r, i) => {
+    const weight = r.weight_grams ? `${r.weight_grams} g` : "—";
+    return r.duplicate
+      ? { id: String(i), title: r.name, note: "Already in closet — will be skipped" }
+      : {
+          id: String(i),
+          title: r.name,
+          now: `${r.category} · ${weight} · ×${r.quantity}`,
+        };
+  });
 
   return (
-    <section className="import">
-      <h2>Import from LighterPack</h2>
-      <div className="row">
-        <input
-          className="import-url"
-          placeholder="https://lighterpack.com/r/… or CSV link"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && preview()}
-        />
-        <button onClick={preview} disabled={busy || !url.trim()}>
+    <section className="sp-import">
+      <SectionLabel>Import from LighterPack</SectionLabel>
+      <div className="sp-import__row">
+        <Field label="LighterPack URL">
+          <input
+            placeholder="https://lighterpack.com/r/… or CSV link"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && preview()}
+          />
+        </Field>
+        <Button onClick={preview} disabled={busy || !url.trim()}>
           {busy && !rows ? "Loading…" : "Preview"}
-        </button>
+        </Button>
       </div>
-      {err && <p className="error">{err}</p>}
+      {err && <p className="sp-error">{err}</p>}
 
-      {rows && (
-        <div className="import-preview">
-          {rows.length === 0 ? (
-            <p className="empty">Nothing to import.</p>
-          ) : (
-            <>
-              <table>
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th className="num">Weight</th>
-                    <th className="num">Qty</th>
-                    <th>Flags</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={i} className={r.include ? "" : "skipped"}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={r.include}
-                          onChange={() => toggle(i)}
-                        />
-                      </td>
-                      <td>
-                        {r.name}
-                        {r.duplicate && <span className="tag dup">duplicate</span>}
-                      </td>
-                      <td>{r.category}</td>
-                      <td className="num">{r.weight_grams ? `${r.weight_grams} g` : ""}</td>
-                      <td className="num">{r.quantity}</td>
-                      <td>
-                        {r.is_worn ? "worn " : ""}
-                        {r.is_consumable ? "consumable" : ""}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="actions">
-                <button onClick={doImport} disabled={busy || selected === 0}>
-                  {busy ? "Importing…" : `Import ${selected} item${selected === 1 ? "" : "s"}`}
-                </button>
-                <button className="secondary" onClick={cancel} disabled={busy}>
-                  Cancel
-                </button>
-              </div>
-            </>
+      {rows && (rows.length === 0 ? (
+        <EmptyState>Nothing to import.</EmptyState>
+      ) : (
+        <div className="sp-import__review">
+          <ChangesetReview
+            title="Import to closet"
+            changes={changes}
+            applied={applied}
+            warning={
+              applied
+                ? undefined
+                : `Adds ${importable.length} item${importable.length === 1 ? "" : "s"} to ${scout.display_name}'s closet`
+            }
+            applyLabel={busy ? "Importing…" : `Import ${importable.length} item${importable.length === 1 ? "" : "s"}`}
+            onApply={apply}
+            onDiscard={discard}
+          />
+          {applied && (
+            <div className="sp-import__done">
+              <StatusPill tone="ok">Imported</StatusPill>
+              <Button size="sm" onClick={discard}>Done</Button>
+            </div>
           )}
         </div>
-      )}
+      ))}
     </section>
   );
 }

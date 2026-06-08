@@ -1,37 +1,76 @@
 import { useEffect, useState } from "react";
+import {
+  Button,
+  DataTable,
+  EmptyState,
+  Field,
+  StatusPill,
+  Toolbar,
+  ToolbarSpacer,
+  statusCell,
+  type Column,
+} from "@troop10rwc/ui";
 import { api } from "../api.ts";
+import { usePageChrome } from "../chrome.tsx";
 import { EVENT_TYPES, EVENT_TYPE_LABELS, type EventType } from "../../shared/constants.ts";
 import type { TemplateBundle, TemplateItem } from "../../shared/types.ts";
 
 type DraftItem = Omit<TemplateItem, "id" | "template_id" | "match_key">;
+// Drafts have no server id; carry a stable client key for selection + edit-in-place.
+type Row = DraftItem & { _k: string };
+
+const key = () => crypto.randomUUID();
 
 export function Templates() {
   const [eventType, setEventType] = useState<EventType>("backpacking");
   const [bundle, setBundle] = useState<TemplateBundle | null>(null);
   const [name, setName] = useState("");
-  const [items, setItems] = useState<DraftItem[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [sel, setSel] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  usePageChrome(
+    { title: "Templates", subtitle: `${EVENT_TYPE_LABELS[eventType]} · ${rows.length} items` },
+    [eventType, rows.length],
+  );
 
   useEffect(() => {
     setBundle(null);
     setSaved(false);
+    setSel([]);
     api.getTemplate(eventType)
       .then((b) => {
         setBundle(b);
         setName(b.template.name);
-        setItems(b.items.map(({ id, template_id, match_key, ...rest }) => rest));
+        setRows(b.items.map(({ id, template_id, match_key, ...rest }) => ({ ...rest, _k: key() })));
       })
       .catch((e: Error) => setErr(e.message));
   }, [eventType]);
 
-  function updateItem(i: number, patch: Partial<DraftItem>) {
-    setItems((curr) => curr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  function commit(_k: string, col: string, value: string | number) {
+    setSaved(false);
+    setRows((curr) =>
+      curr.map((r) => {
+        if (r._k !== _k) return r;
+        switch (col) {
+          case "name": return { ...r, name: String(value) };
+          case "category": return { ...r, category: String(value) };
+          case "default_qty": return { ...r, default_qty: Number(value) || 1 };
+          case "is_worn": return { ...r, is_worn: Number(value) ? 1 : 0 };
+          case "is_consumable": return { ...r, is_consumable: Number(value) ? 1 : 0 };
+          default: return r;
+        }
+      }),
+    );
   }
+
   function addRow() {
-    setItems((curr) => [
+    setSaved(false);
+    setRows((curr) => [
       ...curr,
       {
+        _k: key(),
         name: "",
         description: null,
         category: "Misc",
@@ -42,14 +81,18 @@ export function Templates() {
       },
     ]);
   }
-  function removeRow(i: number) {
-    setItems((curr) => curr.filter((_, idx) => idx !== i));
+
+  function removeSelected() {
+    setSaved(false);
+    setRows((curr) => curr.filter((r) => !sel.includes(r._k)));
+    setSel([]);
   }
+
   async function save() {
     setErr(null);
     setSaved(false);
     try {
-      const cleaned = items
+      const cleaned = rows
         .filter((it) => it.name.trim())
         .map((it, idx) => ({
           name: it.name.trim(),
@@ -60,98 +103,77 @@ export function Templates() {
           is_consumable: !!it.is_consumable,
           sort_order: it.sort_order ?? idx * 10,
         }));
-      // The publishTemplate API expects items: TemplateItem[] shape; the
-      // backend ignores id/template_id/match_key fields when creating, so we
-      // just send the editable subset.
+      // The backend ignores id/template_id/match_key when creating; send the
+      // editable subset only.
       const updated = await api.publishTemplate(eventType, {
         name: name.trim() || EVENT_TYPE_LABELS[eventType],
         items: cleaned as unknown as TemplateBundle["items"],
       });
       setBundle(updated);
+      setRows(updated.items.map(({ id, template_id, match_key, ...rest }) => ({ ...rest, _k: key() })));
       setSaved(true);
     } catch (e) {
       setErr((e as Error).message);
     }
   }
 
-  if (err) return <div className="error">{err}</div>;
-  if (!bundle) return <div className="loading">Loading…</div>;
+  if (err && !bundle) return <EmptyState>{err}</EmptyState>;
+  if (!bundle) return <EmptyState>Loading…</EmptyState>;
+
+  const yesNo = [
+    { value: "1", label: "Yes" },
+    { value: "0", label: "No" },
+  ];
+  const columns: Column<Row>[] = [
+    { key: "name", header: "Name", editor: "text", value: (r) => r.name,
+      render: (r) => r.name || <span className="t10-sub">unnamed</span> },
+    { key: "category", header: "Category", editor: "text", value: (r) => r.category },
+    { key: "default_qty", header: "Qty", align: "right", editor: "number",
+      value: (r) => r.default_qty, render: (r) => <span className="t10-num">{r.default_qty}</span> },
+    { key: "is_worn", header: "Worn", editor: "select", value: (r) => String(r.is_worn), options: yesNo,
+      render: (r) => (r.is_worn ? statusCell("Worn", "neutral") : <span className="t10-sub">—</span>) },
+    { key: "is_consumable", header: "Consumable", editor: "select", value: (r) => String(r.is_consumable), options: yesNo,
+      render: (r) => (r.is_consumable ? statusCell("Consumable", "neutral") : <span className="t10-sub">—</span>) },
+  ];
 
   return (
-    <div className="templates">
-      <h1>Templates</h1>
-      <div className="row">
-        <label>
-          Event type:{" "}
+    <div className="sp-page">
+      <Toolbar>
+        <Field label="Event type">
           <select value={eventType} onChange={(e) => setEventType(e.target.value as EventType)}>
             {EVENT_TYPES.map((t) => (
               <option key={t} value={t}>{EVENT_TYPE_LABELS[t]}</option>
             ))}
           </select>
-        </label>
-        <label>
-          Name:{" "}
+        </Field>
+        <Field label="Template name">
           <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-      </div>
+        </Field>
+        <ToolbarSpacer />
+        <Button onClick={addRow}>+ Row</Button>
+        {saved && <StatusPill tone="ok">Saved</StatusPill>}
+        <Button variant="primary" onClick={save}>Publish new version</Button>
+      </Toolbar>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Category</th>
-            <th>Qty</th>
-            <th>Worn</th>
-            <th>Consumable</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => (
-            <tr key={i}>
-              <td>
-                <input value={it.name} onChange={(e) => updateItem(i, { name: e.target.value })} />
-              </td>
-              <td>
-                <input
-                  value={it.category}
-                  onChange={(e) => updateItem(i, { category: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  type="number"
-                  min={1}
-                  value={it.default_qty}
-                  onChange={(e) => updateItem(i, { default_qty: Number(e.target.value) })}
-                />
-              </td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={!!it.is_worn}
-                  onChange={(e) => updateItem(i, { is_worn: e.target.checked ? 1 : 0 })}
-                />
-              </td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={!!it.is_consumable}
-                  onChange={(e) => updateItem(i, { is_consumable: e.target.checked ? 1 : 0 })}
-                />
-              </td>
-              <td>
-                <button onClick={() => removeRow(i)}>×</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="actions">
-        <button onClick={addRow}>+ row</button>
-        <button onClick={save}>Publish new active version</button>
-        {saved && <span className="saved">Saved.</span>}
-      </div>
+      {err && <p className="sp-error">{err}</p>}
+
+      <DataTable
+        rows={rows}
+        rowKey={(r) => r._k}
+        canEdit
+        onCellCommit={commit}
+        columns={columns}
+        selectable
+        selection={sel}
+        onSelectionChange={setSel}
+        bulkActions={() => (
+          <Button variant="danger" onClick={removeSelected}>
+            Remove {sel.length} item{sel.length === 1 ? "" : "s"}
+          </Button>
+        )}
+        emptyLabel="No items — add a row to start the template."
+        footer={<DataTable.Stat label="Items" value={rows.length} />}
+      />
     </div>
   );
 }

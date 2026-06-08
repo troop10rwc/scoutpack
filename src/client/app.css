@@ -1,0 +1,146 @@
+/* ============================================================================
+   scoutpack · app.css
+   The thin app-specific layer on top of @troop10rwc/ui's theme.css. Everything
+   here uses --t10-* tokens only — no raw values a token exists for, no new hues
+   (the one exception is the closet donut's categorical chart palette, which is
+   data-viz and lives in Closet.tsx). Covers the bespoke closet ledger + donut,
+   the packing-list rows, and event cards — surfaces that aren't a flat DataTable.
+   ============================================================================ */
+
+/* generic padded content region inside AppShell's main pane */
+.sp-page { padding: var(--t10-s5); display: flex; flex-direction: column; gap: var(--t10-s5); }
+.sp-section { display: flex; flex-direction: column; gap: var(--t10-s2); }
+.sp-hint { max-width: 64ch; margin: 0; }
+.sp-error { margin: 0; font-family: var(--t10-font-mono); font-size: var(--t10-fs-xs); color: var(--t10-clay-deep); }
+.sp-stats { display: flex; gap: var(--t10-s5); align-items: center; color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
+
+/* ---- Dashboard: upcoming event cards ------------------------------------- */
+.sp-events { display: grid; gap: var(--t10-s3); }
+.sp-event {
+  background: var(--t10-surface); border: 1px solid var(--t10-line);
+  border-radius: var(--t10-r); padding: var(--t10-s4);
+  display: flex; flex-direction: column; gap: var(--t10-s3);
+}
+.sp-event__head { display: flex; align-items: center; gap: var(--t10-s3); }
+.sp-event__name {
+  font-family: var(--t10-font-display); font-weight: 700; font-size: var(--t10-fs-md);
+  color: var(--t10-ink); text-decoration: none; margin-right: auto;
+}
+.sp-event__name:hover { text-decoration: underline; }
+.sp-event__date { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
+.sp-event__stats { display: flex; gap: var(--t10-s4); align-items: center; color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
+
+/* ---- EventDetail: packing-list rows -------------------------------------- */
+.sp-packing { list-style: none; margin: 0; padding: 0; }
+.sp-packing li {
+  display: flex; align-items: center; gap: var(--t10-s2);
+  padding: 6px var(--t10-s2); border-bottom: 1px solid var(--t10-line-soft);
+}
+.sp-packing li.is-missing { background: var(--t10-clay-tint); border-radius: var(--t10-r-sm); }
+.sp-packing__check { accent-color: var(--t10-clay); }
+.sp-packing__name { flex: 1; }
+.sp-packing__qty { color: var(--t10-ink-faint); margin-left: 2px; }
+
+/* ---- Closet: unit toggle (headstrip) ------------------------------------- */
+.sp-unit { display: inline-flex; gap: 2px; }
+
+/* ---- Closet: pack summary (donut + legend) ------------------------------- */
+.sp-summary { display: flex; gap: var(--t10-s6); align-items: center; flex-wrap: wrap; }
+.sp-donut { flex: 0 0 auto; }
+.sp-legend { border-collapse: collapse; }
+.sp-legend th, .sp-legend td { padding: 3px var(--t10-s3); font-size: var(--t10-fs-sm); text-align: left; }
+.sp-legend th.is-right, .sp-legend td.is-right { text-align: right; white-space: nowrap; }
+.sp-legend thead th {
+  font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
+}
+.sp-legend tfoot td { font-weight: 600; }
+.sp-legend tfoot tr.sp-legend__rule td { border-top: 1px solid var(--t10-line); }
+.sp-swatch {
+  display: inline-block; width: .8rem; height: .8rem; border-radius: 2px;
+  margin-right: var(--t10-s2); vertical-align: middle;
+}
+
+/* ---- Closet: per-category gear ledger ------------------------------------ */
+.sp-cat { margin-top: var(--t10-s4); }
+.sp-cat__head {
+  display: flex; align-items: center; gap: var(--t10-s2);
+  font-family: var(--t10-font-display); font-weight: 800; font-size: var(--t10-fs-lg);
+  margin: var(--t10-s4) 0 var(--t10-s1);
+}
+.sp-gearwrap { overflow-x: auto; }
+.sp-gear { width: 100%; border-collapse: collapse; }
+.sp-gear__name { min-width: 11rem; }
+.sp-gear td:nth-child(2) { min-width: 11rem; }
+.sp-gear td:nth-child(3) { min-width: 9rem; }
+.sp-gear th {
+  text-align: left; font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
+  padding: 4px 6px; border-bottom: 1px solid var(--t10-line);
+}
+.sp-gear th.is-right { text-align: right; }
+.sp-gear td { padding: 1px 4px; border-bottom: 1px solid var(--t10-line-soft); vertical-align: middle; }
+.sp-gear td.is-right { text-align: right; white-space: nowrap; }
+.sp-gear tfoot td { border-bottom: none; border-top: 1px solid var(--t10-line); font-weight: 600; padding-top: 4px; }
+.sp-gear tr.is-dragover td { box-shadow: inset 0 2px 0 0 var(--t10-pine); }
+.sp-gear__grip { width: 1.2rem; padding-right: 0; }
+.sp-gear__del { width: 2rem; text-align: right; }
+.sp-gear__acts { white-space: nowrap; }
+.sp-gear__weight { white-space: nowrap; }
+.sp-gear__weight .sp-cell { width: 5rem; display: inline-block; }
+.sp-gear__qty { width: 3.5rem; display: inline-block; }
+
+.sp-grip { cursor: grab; color: var(--t10-ink-faint); user-select: none; font-size: 1rem; line-height: 1; }
+.sp-grip:active { cursor: grabbing; }
+
+/* inline edit-in-place cell input */
+.sp-cell {
+  width: 100%; border: 1px solid transparent; background: transparent;
+  padding: 4px 6px; border-radius: var(--t10-r-sm); font: inherit;
+  font-size: var(--t10-fs-sm); color: var(--t10-ink);
+}
+.sp-cell:hover { border-color: var(--t10-line); }
+.sp-cell:focus { border-color: var(--t10-pine); background: var(--t10-surface); outline: none; box-shadow: var(--t10-ring); }
+.sp-cell--soft { color: var(--t10-ink-soft); }
+.sp-cell.t10-num { text-align: right; }
+.sp-unit-suffix { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); margin-left: 2px; }
+
+/* icon buttons (photo / link / worn / consumable / favorite / delete) */
+.sp-iconbtn {
+  background: transparent; border: none; color: var(--t10-ink-faint);
+  padding: 3px; cursor: pointer; border-radius: var(--t10-r-sm);
+  vertical-align: middle; line-height: 0;
+}
+.sp-iconbtn:hover { background: var(--t10-surface-3); color: var(--t10-ink); }
+.sp-iconbtn.is-on { color: var(--t10-pine); }
+.sp-iconbtn--link { font-size: .85rem; line-height: 1; text-decoration: none; color: var(--t10-pine); }
+.sp-iconbtn--del { font-size: 1.1rem; line-height: 1; color: var(--t10-ink-faint); }
+.sp-iconbtn--del:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+
+.sp-thumbwrap { position: relative; display: inline-block; vertical-align: middle; }
+.sp-thumb {
+  width: 26px; height: 26px; object-fit: cover; border-radius: var(--t10-r-sm);
+  border: 1px solid var(--t10-line); cursor: pointer; display: block;
+}
+.sp-thumb-x {
+  position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; padding: 0;
+  border-radius: 50%; background: var(--t10-clay); color: #fff; font-size: .7rem;
+  line-height: 13px; border: none; cursor: pointer;
+}
+.sp-linkrow td { border-bottom: 1px dotted var(--t10-line); padding-top: 0; }
+
+/* ---- Closet: tools (add gear + import) ----------------------------------- */
+.sp-tools {
+  margin-top: var(--t10-s6); padding-top: var(--t10-s5);
+  border-top: 1px solid var(--t10-line);
+  display: flex; flex-direction: column; gap: var(--t10-s6);
+}
+.sp-addrow { display: flex; gap: var(--t10-s3); flex-wrap: wrap; align-items: flex-end; }
+.sp-addrow .t10-field { min-width: 8rem; }
+.sp-check { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-check input { accent-color: var(--t10-clay); }
+
+.sp-import__row { display: flex; gap: var(--t10-s3); align-items: flex-end; }
+.sp-import__row .t10-field { flex: 1; max-width: 30rem; }
+.sp-import__review { margin-top: var(--t10-s3); }
+.sp-import__done { display: flex; align-items: center; gap: var(--t10-s3); margin-top: var(--t10-s3); }

@@ -1,5 +1,17 @@
 import { useEffect, useState } from "react";
+import {
+  Button,
+  DataTable,
+  EmptyState,
+  Field,
+  StatusPill,
+  Toolbar,
+  ToolbarSpacer,
+  statusCell,
+  type Column,
+} from "@troop10rwc/ui";
 import { api } from "../api.ts";
+import { usePageChrome } from "../chrome.tsx";
 import {
   POSITIONS,
   POSITION_LABELS,
@@ -17,10 +29,14 @@ const NONE = "__none__";
 export function Roster({ meEmail }: { meEmail: string }) {
   const [members, setMembers] = useState<RosterMember[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [savingEmail, setSavingEmail] = useState<string | null>(null);
-  const [savedEmail, setSavedEmail] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState("");
   const [newPosition, setNewPosition] = useState<Position>("assistant_scoutmaster");
+
+  const leaders = (members ?? []).filter((m) => m.role === "leader").length;
+  usePageChrome(
+    { title: "Roster & Roles", subtitle: `${members?.length ?? 0} members · ${leaders} leaders` },
+    [members?.length, leaders],
+  );
 
   useEffect(() => {
     api.listRoster()
@@ -39,16 +55,16 @@ export function Roster({ meEmail }: { meEmail: string }) {
     return rosterPositions.length ? undefined : "scout";
   }
 
-  async function changeOverride(member: RosterMember, value: string) {
+  async function changeOverride(email: string, value: string) {
+    const member = (members ?? []).find((m) => m.email === email);
+    if (!member) return;
     const override = value === NONE ? null : (value as Position);
     setErr(null);
-    setSavedEmail(null);
-    setSavingEmail(member.email);
     try {
-      await api.setRosterOverride(member.email, override);
+      await api.setRosterOverride(email, override);
       setMembers((curr) =>
         (curr ?? []).map((m) =>
-          m.email === member.email
+          m.email === email
             ? {
                 ...m,
                 override,
@@ -59,11 +75,8 @@ export function Roster({ meEmail }: { meEmail: string }) {
             : m,
         ),
       );
-      setSavedEmail(member.email);
     } catch (e) {
       setErr((e as Error).message);
-    } finally {
-      setSavingEmail(null);
     }
   }
 
@@ -97,79 +110,103 @@ export function Roster({ meEmail }: { meEmail: string }) {
     }
   }
 
-  if (err && !members) return <div className="error">{err}</div>;
-  if (!members) return <div className="loading">Loading…</div>;
+  if (err && !members) return <EmptyState>{err}</EmptyState>;
+  if (!members) return <EmptyState>Loading…</EmptyState>;
+
+  const columns: Column<RosterMember>[] = [
+    {
+      key: "email",
+      header: "Member",
+      render: (m) => (
+        <span>
+          {m.email}
+          {m.email === meEmail && <span className="t10-sub"> (you)</span>}
+        </span>
+      ),
+    },
+    {
+      key: "rosterPositions",
+      header: "Roster positions",
+      render: (m) =>
+        m.rosterPositions.length ? (
+          m.rosterPositions.join(", ")
+        ) : (
+          <span className="t10-sub">—</span>
+        ),
+    },
+    {
+      key: "override",
+      header: "Override",
+      editor: "select",
+      value: (m) => m.override ?? NONE,
+      options: [
+        { value: NONE, label: "No override" },
+        ...POSITIONS.filter((p) => p !== "scout").map((p) => ({
+          value: p,
+          label: POSITION_LABELS[p],
+        })),
+        // Force scout overrides a roster/group leader.
+        { value: "scout", label: "Scout — revoke access" },
+      ],
+      render: (m) =>
+        m.override ? POSITION_LABELS[m.override] : <span className="t10-sub">none</span>,
+    },
+    {
+      key: "role",
+      header: "Access",
+      render: (m) =>
+        m.role === "leader" ? statusCell("Leader", "ok") : statusCell("Scout", "neutral"),
+    },
+  ];
 
   return (
-    <div className="roster">
-      <h1>Roster &amp; Roles</h1>
-      <p className="hint">
+    <div className="sp-page">
+      <p className="t10-sub sp-hint">
         Roles come from the troop roster (read-only). Scoutmaster, Assistant
         Scoutmaster, Crew Advisor, Assistant Crew Advisor, Senior Patrol Leader,
-        and Troop Admin get leader access to templates and event tagging. Use an{" "}
-        <strong>override</strong> below to grant or revoke access for someone not
-        (yet) on the roster — it takes precedence until cleared.
+        and Troop Admin get leader access. Use an <strong>override</strong> to grant
+        or revoke access for someone not (yet) on the roster — it takes precedence
+        until cleared.
       </p>
 
-      <div className="roster-add row">
-        <input
-          type="email"
-          placeholder="email to override"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-        />
-        <select
-          value={newPosition}
-          onChange={(e) => setNewPosition(e.target.value as Position)}
-        >
-          {POSITIONS.map((p) => (
-            <option key={p} value={p}>{POSITION_LABELS[p]}</option>
-          ))}
-        </select>
-        <button onClick={addOverride}>Set override</button>
-      </div>
+      <Toolbar>
+        <Field label="Email to override">
+          <input
+            type="email"
+            placeholder="name@example.org"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+          />
+        </Field>
+        <Field label="Position">
+          <select
+            value={newPosition}
+            onChange={(e) => setNewPosition(e.target.value as Position)}
+          >
+            {POSITIONS.map((p) => (
+              <option key={p} value={p}>{POSITION_LABELS[p]}</option>
+            ))}
+          </select>
+        </Field>
+        <ToolbarSpacer />
+        <Button variant="primary" onClick={addOverride}>Set override</Button>
+      </Toolbar>
 
-      {err && <div className="error">{err}</div>}
+      {err && <p className="sp-error">{err}</p>}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Member</th>
-            <th>Roster positions</th>
-            <th>Override</th>
-            <th>Access</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.email}>
-              <td>
-                {m.email}
-                {m.email === meEmail && <span className="you"> (you)</span>}
-              </td>
-              <td className="muted">
-                {m.rosterPositions.length ? m.rosterPositions.join(", ") : "—"}
-              </td>
-              <td>
-                <select
-                  value={m.override ?? NONE}
-                  disabled={savingEmail === m.email}
-                  onChange={(e) => changeOverride(m, e.target.value)}
-                >
-                  <option value={NONE}>No override</option>
-                  {POSITIONS.filter((p) => p !== "scout").map((p) => (
-                    <option key={p} value={p}>{POSITION_LABELS[p]}</option>
-                  ))}
-                  {/* Force scout overrides a roster/group leader. */}
-                  <option value="scout">Scout — revoke access</option>
-                </select>
-                {savedEmail === m.email && <span className="saved"> Saved.</span>}
-              </td>
-              <td>{m.role === "leader" ? "Leader" : "Scout"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        rows={members}
+        rowKey={(m) => m.email}
+        canEdit
+        onCellCommit={(email, _col, value) => changeOverride(email, String(value))}
+        columns={columns}
+        footer={
+          <>
+            <DataTable.Stat label="Members" value={members.length} />
+            <DataTable.Stat label="Leaders" value={leaders} />
+          </>
+        }
+      />
     </div>
   );
 }
