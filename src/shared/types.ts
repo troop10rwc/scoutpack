@@ -62,6 +62,7 @@ export interface User extends KitIdentity {
 // positions, and any manual override.
 export interface RosterMember {
   email: string;
+  name: string;                // full name from roster-db ("" if not on roster)
   override: Position | null;   // explicit member_roles override (null => none)
   rosterPositions: string[];   // BSA titles from roster-db
   role: Role;                  // effective capability after all layers

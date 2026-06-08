@@ -89,3 +89,36 @@ export async function getAllRosterPositions(
   }
   return map;
 }
+
+// All known roster emails -> full name ("First Last"), for the roster overview.
+// Keyed by lowercased email. When an email appears on multiple records the first
+// non-empty name wins. Members with no email are skipped (they can't log in).
+export async function getAllRosterNames(
+  roster: D1Database,
+): Promise<Map<string, string>> {
+  const [adults, youth] = await Promise.all([
+    roster
+      .prepare(
+        `SELECT lower(email) AS email, first_name, last_name
+           FROM adult_members
+          WHERE email IS NOT NULL AND trim(email) != ''`,
+      )
+      .all<{ email: string; first_name: string; last_name: string }>(),
+    roster
+      .prepare(
+        `SELECT lower(je.value) AS email, ym.first_name, ym.last_name
+           FROM youth_members ym, json_each(ym.emails) je
+          WHERE trim(je.value) != ''`,
+      )
+      .all<{ email: string; first_name: string; last_name: string }>(),
+  ]);
+  const map = new Map<string, string>();
+  for (const r of [...(adults.results ?? []), ...(youth.results ?? [])]) {
+    const name = [r.first_name, r.last_name]
+      .filter((p) => typeof p === "string" && p.trim())
+      .join(" ")
+      .trim();
+    if (name && !map.get(r.email)) map.set(r.email, name);
+  }
+  return map;
+}

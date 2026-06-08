@@ -95,6 +95,7 @@ export function Roster({ meEmail }: { meEmail: string }) {
         return [
           {
             email,
+            name: existing?.name ?? "",
             override: newPosition,
             rosterPositions: existing?.rosterPositions ?? [],
             role: newPosition !== "scout" ? "leader" : "scout",
@@ -118,9 +119,12 @@ export function Roster({ meEmail }: { meEmail: string }) {
       key: "email",
       header: "Member",
       render: (m) => (
-        <span>
-          {m.email}
-          {m.email === meEmail && <span className="t10-sub"> (you)</span>}
+        <span className="sp-member">
+          <span>
+            {m.name || m.email}
+            {m.email === meEmail && <span className="t10-sub"> (you)</span>}
+          </span>
+          {m.name && <span className="t10-sub sp-member__email">{m.email}</span>}
         </span>
       ),
     },
