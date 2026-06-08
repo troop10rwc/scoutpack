@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Button, EmptyState, SectionLabel, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
+import { usePageChrome } from "../chrome.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { PackingListBundle, Scout } from "../../shared/types.ts";
 
@@ -10,6 +12,15 @@ type BundleOrEmpty =
 export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string }) {
   const [bundle, setBundle] = useState<BundleOrEmpty | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const ev = bundle?.event ?? null;
+  usePageChrome(
+    {
+      title: ev?.name ?? "Packing List",
+      subtitle: ev ? `${EVENT_TYPE_LABELS[ev.event_type]} · ${formatDate(ev.start_at)}` : undefined,
+    },
+    [ev?.name, ev?.event_type, ev?.start_at],
+  );
 
   function load() {
     setBundle(null);
@@ -60,16 +71,19 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     );
   }
 
-  if (err) return <div className="error">{err}</div>;
-  if (!bundle) return <div className="loading">Loading…</div>;
+  if (err) return <EmptyState>{err}</EmptyState>;
+  if (!bundle) return <EmptyState>Loading…</EmptyState>;
 
   const { event } = bundle;
   if (!bundle.list) {
     return (
-      <div className="event-detail">
-        <EventHeader event={event} />
-        <p>No packing list yet for this event.</p>
-        <button onClick={generate}>Generate from {EVENT_TYPE_LABELS[event.event_type]} template</button>
+      <div className="sp-page">
+        <EmptyState>No packing list yet for this event.</EmptyState>
+        <div style={{ textAlign: "center" }}>
+          <Button variant="primary" onClick={generate}>
+            Generate from {EVENT_TYPE_LABELS[event.event_type]} template
+          </Button>
+        </div>
       </div>
     );
   }
@@ -85,40 +99,37 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   }
 
   return (
-    <div className="event-detail">
-      <EventHeader event={event} />
-      <div className="stats">
-        <span>{owned}/{total} owned</span>
-        <span>{packed}/{total} packed</span>
-        {owned < total && (
-          <span className="missing">{total - owned} missing from closet</span>
-        )}
+    <div className="sp-page">
+      <div className="sp-stats">
+        <span><span className="t10-num">{owned}/{total}</span> owned</span>
+        <span><span className="t10-num">{packed}/{total}</span> packed</span>
+        {owned < total && <StatusPill tone="alert">{total - owned} missing from closet</StatusPill>}
       </div>
 
       {[...byCategory.entries()].map(([cat, list]) => (
-        <section key={cat} className="category">
-          <h2>{cat}</h2>
-          <ul className="packing-list">
+        <section key={cat} className="sp-section">
+          <SectionLabel>{cat}</SectionLabel>
+          <ul className="sp-packing">
             {list.map((it) => (
-              <li key={it.id} className={it.owned ? "" : "missing-row"}>
-                <label className="packed-toggle">
-                  <input
-                    type="checkbox"
-                    checked={!!it.packed}
-                    disabled={!it.owned}
-                    onChange={(e) => togglePacked(it.id, e.target.checked)}
-                  />
-                </label>
-                <span className="item-name">
+              <li key={it.id} className={it.owned ? "" : "is-missing"}>
+                <input
+                  type="checkbox"
+                  className="sp-packing__check"
+                  checked={!!it.packed}
+                  disabled={!it.owned}
+                  aria-label={`Packed: ${it.name}`}
+                  onChange={(e) => togglePacked(it.id, e.target.checked)}
+                />
+                <span className="sp-packing__name">
                   {it.name}
-                  {it.quantity > 1 && <small> × {it.quantity}</small>}
+                  {it.quantity > 1 && <span className="t10-num sp-packing__qty"> ×{it.quantity}</span>}
                 </span>
-                {it.is_worn ? <span className="tag">worn</span> : null}
-                {it.is_consumable ? <span className="tag">consumable</span> : null}
+                {it.is_worn ? <StatusPill tone="neutral">worn</StatusPill> : null}
+                {it.is_consumable ? <StatusPill tone="neutral">consumable</StatusPill> : null}
                 {!it.owned && (
                   <>
-                    <span className="badge missing">Not in closet</span>
-                    <button onClick={() => addMissingToCloset(it)}>Add to closet</button>
+                    <StatusPill tone="alert">Not in closet</StatusPill>
+                    <Button size="sm" onClick={() => addMissingToCloset(it)}>Add to closet</Button>
                   </>
                 )}
               </li>
@@ -130,16 +141,13 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   );
 }
 
-function EventHeader({ event }: { event: PackingListBundle["event"] }) {
-  return (
-    <header className="event-header">
-      <h1>{event.name}</h1>
-      <div>
-        <span className={`type-badge type-${event.event_type}`}>
-          {EVENT_TYPE_LABELS[event.event_type]}
-        </span>
-        <span>{new Date(event.start_at).toLocaleDateString()}</span>
-      </div>
-    </header>
-  );
+function formatDate(s: string): string {
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

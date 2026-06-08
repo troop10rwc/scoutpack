@@ -1,12 +1,30 @@
 import { useEffect, useState } from "react";
+import {
+  Button,
+  DataTable,
+  EmptyState,
+  SectionLabel,
+  StatusPill,
+  statusCell,
+  type Column,
+} from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { navigate } from "../router.ts";
+import { usePageChrome } from "../chrome.tsx";
 import { EVENT_TYPES, EVENT_TYPE_LABELS, type EventType } from "../../shared/constants.ts";
 import type { LeaderEventRow, Me, Scout, UpcomingEvent } from "../../shared/types.ts";
 
 export function Dashboard({ scout, me }: { scout: Scout; me: Me }) {
   const [events, setEvents] = useState<UpcomingEvent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  usePageChrome(
+    {
+      title: "Upcoming",
+      subtitle: `${scout.display_name} · ${events?.length ?? 0} event${events?.length === 1 ? "" : "s"}`,
+    },
+    [scout.display_name, events?.length],
+  );
 
   useEffect(() => {
     setEvents(null);
@@ -24,41 +42,37 @@ export function Dashboard({ scout, me }: { scout: Scout; me: Me }) {
     }
   }
 
-  if (err) return <div className="error">{err}</div>;
-  if (!events) return <div className="loading">Loading events…</div>;
+  if (err) return <EmptyState>{err}</EmptyState>;
+  if (!events) return <EmptyState>Loading events…</EmptyState>;
 
   return (
-    <div className="events">
-      <h1>Upcoming events for {scout.display_name}</h1>
-      {!events.length && <div className="empty">No upcoming gear-relevant events.</div>}
-      <ul className="event-list">
+    <div className="sp-page">
+      {!events.length && <EmptyState>No upcoming gear-relevant events.</EmptyState>}
+
+      <div className="sp-events">
         {events.map((e) => (
-          <li key={e.id} className="event-card">
-            <div className="event-meta">
-              <a className="event-name" href={`#/event/${encodeURIComponent(e.id)}`}>
+          <div key={e.id} className="sp-event">
+            <div className="sp-event__head">
+              <a className="sp-event__name" href={`#/event/${encodeURIComponent(e.id)}`}>
                 {e.name}
               </a>
-              <span className={`type-badge type-${e.event_type}`}>
-                {EVENT_TYPE_LABELS[e.event_type]}
-              </span>
-              <span className="event-date">{formatDate(e.start_at)}</span>
+              <StatusPill tone="neutral">{EVENT_TYPE_LABELS[e.event_type]}</StatusPill>
+              <span className="t10-num sp-event__date">{formatDate(e.start_at)}</span>
             </div>
             {e.packing ? (
-              <div className="event-stats">
-                <span>{e.packing.owned}/{e.packing.total} owned</span>
-                <span>{e.packing.packed}/{e.packing.total} packed</span>
+              <div className="sp-event__stats">
+                <span><span className="t10-num">{e.packing.owned}/{e.packing.total}</span> owned</span>
+                <span><span className="t10-num">{e.packing.packed}/{e.packing.total}</span> packed</span>
                 {e.packing.owned < e.packing.total && (
-                  <span className="missing">
-                    {e.packing.total - e.packing.owned} missing
-                  </span>
+                  <StatusPill tone="alert">{e.packing.total - e.packing.owned} missing</StatusPill>
                 )}
               </div>
             ) : (
-              <button onClick={() => generate(e.id)}>Generate packing list</button>
+              <Button onClick={() => generate(e.id)}>Generate packing list</Button>
             )}
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
 
       {me.role === "leader" && <LeaderTagger />}
     </div>
@@ -91,52 +105,60 @@ function LeaderTagger() {
     }
   }
 
-  if (err) return <div className="error">Leader tagger: {err}</div>;
+  if (err) return <EmptyState>Leader tagger: {err}</EmptyState>;
   if (!rows) return null;
 
+  const columns: Column<LeaderEventRow>[] = [
+    {
+      key: "start_at",
+      header: "Date",
+      render: (r) => <span className="t10-num">{formatDate(r.start_at)}</span>,
+    },
+    {
+      key: "calendar_type",
+      header: "Calendar type",
+      render: (r) => <span className="t10-num">{r.calendar_type}</span>,
+    },
+    { key: "name", header: "Event" },
+    {
+      key: "gear_type",
+      header: "Gear type",
+      editor: "select",
+      value: (r) => r.gear_type ?? "",
+      options: [
+        { value: "", label: "— untagged —" },
+        ...EVENT_TYPES.map((t) => ({ value: t, label: EVENT_TYPE_LABELS[t] })),
+      ],
+      render: (r) => (r.gear_type ? EVENT_TYPE_LABELS[r.gear_type] : <span className="t10-sub">untagged</span>),
+    },
+    {
+      key: "source",
+      header: "Source",
+      render: (r) =>
+        r.override_set
+          ? statusCell("Override", "info")
+          : r.gear_type
+            ? statusCell("Auto", "ok")
+            : statusCell("—", "neutral"),
+    },
+  ];
+
   return (
-    <section className="leader-tagger">
-      <h2>Leader: tag upcoming events</h2>
-      <p className="muted">
-        Set the gear-list type for each upcoming event. Overrides take
-        precedence over the summary-keyword guess. Clearing an override
-        reverts to the guess (or removes the event from the scout view if no
-        guess exists).
+    <section className="sp-section">
+      <SectionLabel>Leader · tag upcoming events</SectionLabel>
+      <p className="t10-sub sp-hint">
+        Set the gear-list type for each upcoming event. Overrides take precedence
+        over the summary-keyword guess. Clearing an override reverts to the guess
+        (or removes the event from the scout view if no guess exists).
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Calendar type</th>
-            <th>Event</th>
-            <th>Gear type</th>
-            <th>Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{formatDate(r.start_at)}</td>
-              <td><code>{r.calendar_type}</code></td>
-              <td>{r.name}</td>
-              <td>
-                <select
-                  value={r.gear_type ?? ""}
-                  onChange={(e) => set(r.id, e.target.value)}
-                >
-                  <option value="">— untagged —</option>
-                  {EVENT_TYPES.map((t) => (
-                    <option key={t} value={t}>{EVENT_TYPE_LABELS[t]}</option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {r.override_set ? "override" : r.gear_type ? "auto" : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        rows={rows}
+        rowKey={(r) => r.id}
+        canEdit
+        onCellCommit={(id, _col, value) => set(id, String(value))}
+        columns={columns}
+        footer={<DataTable.Stat label="Events" value={rows.length} />}
+      />
     </section>
   );
 }
