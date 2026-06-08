@@ -1,7 +1,8 @@
 import type { EventType } from "./constants.ts";
 // Foundational role types come from the shared kit so every troop10rwc app
-// agrees on Role / Position / LEADER_POSITIONS. We extend Identity locally
-// with the resolved role + roster/override context the kit doesn't model yet.
+// agrees on Role / Position / LEADER_POSITIONS. The kit's Identity is the raw
+// verified Access subject ({email, name}); scoutpack's User layers the
+// resolved role + roster/override context on top.
 import {
   LEADER_POSITIONS as KIT_LEADER_POSITIONS,
   type Identity as KitIdentity,
@@ -45,10 +46,11 @@ export const LEADER_ROSTER_POSITIONS = [
   "Troop Admin",
 ] as const;
 
-// The kit's Identity carries just the verified Access subject (email + name).
-// Scoutpack's resolved identity layers the effective role and the inputs that
-// produced it (manual override + roster-derived positions).
-export interface Identity extends KitIdentity {
+// The resolved app-level user: the kit's Identity (verified Access subject —
+// email + name) extended with the effective role and the inputs that produced
+// it (manual override + roster-derived positions). This is what `c.var.user`
+// carries and what handlers reason about.
+export interface User extends KitIdentity {
   role: Role;
   // Manual override from member_roles, if any (null => no override row).
   override: Position | null;

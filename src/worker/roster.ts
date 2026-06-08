@@ -1,4 +1,4 @@
-import type { Identity, Position, RosterMember, Role } from "../shared/types.ts";
+import type { Position, Role, RosterMember, User } from "../shared/types.ts";
 import { LEADER_POSITIONS, POSITIONS } from "../shared/types.ts";
 import { getAllRosterPositions, getRosterPositions, hasLeaderPosition } from "./rosterdb.ts";
 
@@ -46,15 +46,16 @@ function resolveRole(
   return inLeaderGroup ? "leader" : "scout";
 }
 
-// Combine the verified Access identity with the override + roster DB to produce
-// the final identity the app reasons about. `inLeaderGroup` is the LEADER_GROUP
-// membership from the Access JWT; it only matters as a last-resort fallback.
-export async function resolveIdentity(
+// Combine the verified Access identity (`base` — the kit's Identity) with the
+// override + roster DB to produce the app-level User. `inLeaderGroup` is the
+// LEADER_GROUP membership from the Access JWT; it only matters as a last-resort
+// fallback.
+export async function resolveUser(
   db: D1Database,
   roster: D1Database,
   base: { email: string; name: string },
   inLeaderGroup: boolean,
-): Promise<Identity> {
+): Promise<User> {
   const [override, rosterPositions] = await Promise.all([
     getOverride(db, base.email),
     getRosterPositions(roster, base.email),
@@ -161,7 +162,7 @@ export async function setOverride(
 // Gate for editing roles. Per configuration the editor set equals the leader
 // set, so this currently mirrors requireLeader — kept distinct so the two
 // capabilities can diverge later without touching call sites.
-export function requireRoleManager(c: { get: (k: "user") => Identity }) {
+export function requireRoleManager(c: { get: (k: "user") => User }) {
   const u = c.get("user");
   if (u.role !== "leader") {
     const err = new Error("forbidden");
