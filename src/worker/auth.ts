@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import { getAccessGroups, verifyAccessJwt } from "@troop10rwc/worker-kit";
-import type { Identity } from "../shared/types.ts";
-import { resolveIdentity } from "./roster.ts";
+import type { User } from "../shared/types.ts";
+import { resolveUser } from "./roster.ts";
 
 // The whole troop10rwc.org domain sits behind Cloudflare Access (Zero Trust)
 // with Slack as the identity provider. Access authenticates users at the edge
@@ -44,7 +44,7 @@ function expectedAudForHost(host: string, env: AuthBindings): string | null {
 
 export const requireAuth: MiddlewareHandler<{
   Bindings: AuthBindings;
-  Variables: { user: Identity };
+  Variables: { user: User };
 }> = async (c, next) => {
   let base: { email: string; name: string };
   let inLeaderGroup: boolean;
@@ -75,12 +75,12 @@ export const requireAuth: MiddlewareHandler<{
     }
   }
 
-  const id = await resolveIdentity(c.env.DB, c.env.ROSTER, base, inLeaderGroup);
-  c.set("user", id);
+  const user = await resolveUser(c.env.DB, c.env.ROSTER, base, inLeaderGroup);
+  c.set("user", user);
   await next();
 };
 
-export function requireLeader(c: { get: (k: "user") => Identity }) {
+export function requireLeader(c: { get: (k: "user") => User }) {
   const u = c.get("user");
   if (u.role !== "leader") {
     const err = new Error("forbidden");

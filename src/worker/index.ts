@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { requireAuth, requireLeader, type AuthBindings } from "./auth.ts";
-import type { Identity } from "../shared/types.ts";
+import type { User } from "../shared/types.ts";
 import { BASE_PATH, EVENT_TYPES, type EventType } from "../shared/constants.ts";
 import {
   clearEventGearType,
@@ -48,7 +48,7 @@ interface Bindings extends AuthBindings {
   ENVIRONMENT?: string;
 }
 
-type Env = { Bindings: Bindings; Variables: { user: Identity; accountId: string } };
+type Env = { Bindings: Bindings; Variables: { user: User; accountId: string } };
 
 const app = new Hono<Env>();
 const api = new Hono<Env>();
