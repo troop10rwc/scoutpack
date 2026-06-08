@@ -1,6 +1,11 @@
 import type { Position, Role, RosterMember, User } from "../shared/types.ts";
 import { LEADER_POSITIONS, POSITIONS } from "../shared/types.ts";
-import { getAllRosterPositions, getRosterPositions, hasLeaderPosition } from "./rosterdb.ts";
+import {
+  getAllRosterNames,
+  getAllRosterPositions,
+  getRosterPositions,
+  hasLeaderPosition,
+} from "./rosterdb.ts";
 
 // Role resolution. Three layers, highest precedence first:
 //   1. Explicit override in member_roles (this DB) — see setPosition.
@@ -77,7 +82,7 @@ export async function listRoster(
   db: D1Database,
   roster: D1Database,
 ): Promise<RosterMember[]> {
-  const [{ results }, rosterMap] = await Promise.all([
+  const [{ results }, rosterMap, nameMap] = await Promise.all([
     db
       .prepare(
         // member_roles emails are always lowercased; account emails come from
@@ -99,6 +104,7 @@ export async function listRoster(
         updated_at: string | null;
       }>(),
     getAllRosterPositions(roster),
+    getAllRosterNames(roster),
   ]);
 
   const byEmail = new Map<string, RosterMember>();
@@ -106,6 +112,7 @@ export async function listRoster(
     const rosterPositions = rosterMap.get(r.email) ?? [];
     byEmail.set(r.email, {
       email: r.email,
+      name: nameMap.get(r.email) ?? "",
       override: r.override,
       rosterPositions,
       role: resolveRole(r.override, rosterPositions, false),
@@ -118,6 +125,7 @@ export async function listRoster(
     if (byEmail.has(email)) continue;
     byEmail.set(email, {
       email,
+      name: nameMap.get(email) ?? "",
       override: null,
       rosterPositions,
       role: resolveRole(null, rosterPositions, false),
@@ -126,10 +134,12 @@ export async function listRoster(
     });
   }
 
+  // Leaders first, then by display name. Members without a roster name fall
+  // back to their email so they still sort sensibly.
   return [...byEmail.values()].sort(
     (a, b) =>
       (a.role === "leader" ? 0 : 1) - (b.role === "leader" ? 0 : 1) ||
-      a.email.localeCompare(b.email),
+      (a.name || a.email).localeCompare(b.name || b.email),
   );
 }
 

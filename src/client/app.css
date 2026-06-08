@@ -41,6 +41,10 @@
 .sp-packing__name { flex: 1; }
 .sp-packing__qty { color: var(--t10-ink-faint); margin-left: 2px; }
 
+/* ---- Roster: member cell (full name over email) -------------------------- */
+.sp-member { display: flex; flex-direction: column; gap: 1px; }
+.sp-member__email { font-size: var(--t10-fs-xs); }
+
 /* ---- Closet: unit toggle (headstrip) ------------------------------------- */
 .sp-unit { display: inline-flex; gap: 2px; }
 
