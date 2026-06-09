@@ -171,13 +171,17 @@ export interface PackingListItem {
   sort_order: number;
 }
 
+// A packing-list item enriched with its resolved closet ownership — the shape
+// the UI works with (and what the add/update endpoints return).
+export type PackingItemView = PackingListItem & {
+  owned: boolean;
+  closet_item: ClosetItem | null;
+};
+
 export interface PackingListBundle {
   list: PackingList;
   event: TroopEvent;
-  items: (PackingListItem & {
-    owned: boolean;
-    closet_item: ClosetItem | null;
-  })[];
+  items: PackingItemView[];
 }
 
 export interface TroopEvent {

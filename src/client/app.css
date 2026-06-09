@@ -30,17 +30,6 @@
 .sp-event__date { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
 .sp-event__stats { display: flex; gap: var(--t10-s4); align-items: center; color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
 
-/* ---- EventDetail: packing-list rows -------------------------------------- */
-.sp-packing { list-style: none; margin: 0; padding: 0; }
-.sp-packing li {
-  display: flex; align-items: center; gap: var(--t10-s2);
-  padding: 6px var(--t10-s2); border-bottom: 1px solid var(--t10-line-soft);
-}
-.sp-packing li.is-missing { background: var(--t10-clay-tint); border-radius: var(--t10-r-sm); }
-.sp-packing__check { accent-color: var(--t10-clay); }
-.sp-packing__name { flex: 1; }
-.sp-packing__qty { color: var(--t10-ink-faint); margin-left: 2px; }
-
 /* ---- Roster: member cell (full name over email) -------------------------- */
 .sp-member { display: flex; flex-direction: column; gap: 1px; }
 .sp-member__email { font-size: var(--t10-fs-xs); }
@@ -94,6 +83,10 @@
 .sp-gear td.is-right { text-align: right; white-space: nowrap; }
 .sp-gear tfoot td { border-bottom: none; border-top: 1px solid var(--t10-line); font-weight: 600; padding-top: 4px; }
 .sp-gear tr.is-dragover td { box-shadow: inset 0 2px 0 0 var(--t10-pine); }
+/* Packing list: packed checkbox column + "missing from closet" row tint. */
+.sp-gear__check { width: 2rem; text-align: center; }
+.sp-gear__check input { accent-color: var(--t10-clay); cursor: pointer; }
+.sp-gear tr.is-missing td { background: var(--t10-clay-tint); }
 .sp-gear__grip { width: 1.2rem; padding-right: 0; }
 .sp-gear__del { width: 2rem; text-align: right; }
 .sp-gear__acts { white-space: nowrap; }
