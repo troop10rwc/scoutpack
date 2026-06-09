@@ -83,7 +83,9 @@ export function Closet({ scout }: { scout: Scout }) {
         const byName = new Map<string, NameSuggestion>();
         for (const b of bundles) {
           if (!b) continue;
-          const label = b.template.name?.trim() || EVENT_TYPE_LABELS[b.template.event_type];
+          // Label by the event type ("Backpacking", "Car Camping"), not the raw
+          // template name (which carries a "— standard" variant suffix).
+          const label = EVENT_TYPE_LABELS[b.template.event_type];
           for (const it of b.items) {
             const name = it.name.trim();
             if (!name) continue;
