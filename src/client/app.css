@@ -112,6 +112,7 @@
 
 /* icon buttons (photo / link / worn / consumable / favorite / delete) */
 .sp-iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; color: var(--t10-ink-faint);
   padding: 3px; cursor: pointer; border-radius: var(--t10-r-sm);
   vertical-align: middle; line-height: 0;
