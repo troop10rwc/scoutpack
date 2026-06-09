@@ -121,6 +121,9 @@
 .sp-iconbtn--link { font-size: .85rem; line-height: 1; text-decoration: none; color: var(--t10-pine); }
 .sp-iconbtn--del { font-size: 1.1rem; line-height: 1; color: var(--t10-ink-faint); }
 .sp-iconbtn--del:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+/* "Not in your closet — click to add" affordance on packing rows. */
+.sp-iconbtn--add { color: var(--t10-clay); }
+.sp-iconbtn--add:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
 
 .sp-thumbwrap { position: relative; display: inline-block; vertical-align: middle; }
 .sp-thumb {

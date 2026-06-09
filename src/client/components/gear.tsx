@@ -86,6 +86,16 @@ export function Icon({ name, filled }: { name: string; filled?: boolean }) {
           <polygon points="12 2 15 9 22 9.3 17 14 18.2 21 12 17.5 5.8 21 7 14 2 9.3 9 9" />
         </svg>
       );
+    case "closet":
+      // A wardrobe: two doors with knobs — the "is it in your closet?" glyph.
+      return (
+        <svg {...p}>
+          <rect x="5" y="3" width="14" height="18" rx="1" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+          <line x1="9.4" y1="11" x2="9.4" y2="13" />
+          <line x1="14.6" y1="11" x2="14.6" y2="13" />
+        </svg>
+      );
     default:
       return null;
   }

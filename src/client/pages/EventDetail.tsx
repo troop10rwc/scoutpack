@@ -396,12 +396,17 @@ function PackRow({
           <Icon name="utensils" />
         </button>
         {item.owned ? (
-          <StatusPill tone="ok">in closet</StatusPill>
+          <span className="sp-iconbtn is-on" title="In your closet">
+            <Icon name="closet" />
+          </span>
         ) : (
-          <>
-            <StatusPill tone="alert">missing</StatusPill>
-            <Button size="sm" onClick={onAddToCloset}>Add to closet</Button>
-          </>
+          <button
+            className="sp-iconbtn sp-iconbtn--add"
+            onClick={onAddToCloset}
+            title="Not in your closet — click to add it"
+          >
+            <Icon name="closet" />
+          </button>
         )}
       </td>
       <td className="is-right sp-gear__weight">
