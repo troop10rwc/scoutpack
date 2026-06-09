@@ -93,7 +93,14 @@
 .sp-gear__acts { white-space: nowrap; }
 .sp-gear__weight { white-space: nowrap; }
 .sp-gear__weight .sp-cell { width: 5rem; display: inline-block; }
-.sp-gear__qty { width: 3.5rem; display: inline-block; }
+/* Compound selector so this beats `.sp-cell { width: 100% }` (equal specificity,
+   later in source) — otherwise the qty input collapses to its column width. */
+.sp-cell.sp-gear__qty { width: 3.5rem; display: inline-block; }
+/* Drop native number spinners — they crowd the narrow weight/qty cells and hide
+   the value. The fields stay type=number (mobile keypad) but read as plain text. */
+.sp-gear input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.sp-gear input[type="number"]::-webkit-outer-spin-button,
+.sp-gear input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .sp-grip { cursor: grab; color: var(--t10-ink-faint); user-select: none; font-size: 1rem; line-height: 1; }
 .sp-grip:active { cursor: grabbing; }
