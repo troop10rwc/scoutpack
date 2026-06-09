@@ -74,9 +74,16 @@
 }
 .sp-gearwrap { overflow-x: auto; }
 .sp-gear { width: 100%; border-collapse: collapse; }
-.sp-gear__name { min-width: 11rem; }
-.sp-gear td:nth-child(2) { min-width: 11rem; }
-.sp-gear td:nth-child(3) { min-width: 9rem; }
+/* Every column shrinks to fit its content (numbers stay right-aligned)… */
+.sp-gear th, .sp-gear td { white-space: nowrap; }
+/* …except Description (3rd col), which absorbs all the remaining width.
+   Scoped to thead/tbody: the tfoot row has a colSpan cell that shifts indices. */
+.sp-gear thead th:nth-child(3), .sp-gear tbody td:nth-child(3) { width: 100%; }
+/* Name holds an editable input with no intrinsic width. A min-width on its
+   wrapper sets the column's floor so the greedy Description column can't starve
+   it below a usable size (a plain `width` would lose to the 100% column). */
+.sp-gear__name { min-width: 12rem; }
+.sp-nameac { min-width: 12rem; }
 .sp-gear th {
   text-align: left; font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
