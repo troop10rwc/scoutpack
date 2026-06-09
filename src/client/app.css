@@ -133,6 +133,32 @@
 }
 .sp-linkrow td { border-bottom: 1px dotted var(--t10-line); padding-top: 0; }
 
+/* name cell autocomplete (suggestions sourced from templates) */
+.sp-nameac { position: relative; }
+.sp-ac {
+  position: fixed; z-index: 50; margin: 2px 0 0;
+  width: max-content; max-width: 22rem; max-height: 16rem; overflow-y: auto;
+  list-style: none; padding: 4px; background: var(--t10-surface);
+  border: 1px solid var(--t10-line); border-radius: var(--t10-r-sm);
+  box-shadow: var(--t10-shadow-pop, 0 6px 24px rgba(0, 0, 0, .14));
+}
+.sp-ac li {
+  display: flex; flex-direction: column; gap: 1px; padding: 5px 8px;
+  border-radius: var(--t10-r-sm); cursor: pointer;
+}
+.sp-ac li.is-active { background: var(--t10-surface-3); }
+.sp-ac__name { font-size: var(--t10-fs-sm); color: var(--t10-ink); }
+.sp-ac__tpl { font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); }
+
+/* per-section "add new item" + bottom "add new category" controls */
+.sp-addmore { margin-top: var(--t10-s1); }
+.sp-addcat {
+  display: flex; gap: var(--t10-s2); align-items: center;
+  margin-top: var(--t10-s5); padding-top: var(--t10-s4);
+  border-top: 1px solid var(--t10-line);
+}
+.sp-addcat .sp-cell { max-width: 16rem; border-color: var(--t10-line); }
+
 /* ---- Closet: tools (add gear + import) ----------------------------------- */
 .sp-tools {
   margin-top: var(--t10-s6); padding-top: var(--t10-s5);

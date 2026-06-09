@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   ChangesetReview,
@@ -10,18 +10,12 @@ import {
 } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
+import { EVENT_TYPES, EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { ClosetItem, ImportPreviewItem, Scout } from "../../shared/types.ts";
 
-const BLANK: Partial<ClosetItem> = {
-  name: "",
-  category: "Misc",
-  brand: "",
-  description: "",
-  weight_grams: null,
-  quantity: 1,
-  is_worn: 0,
-  is_consumable: 0,
-};
+// One autocomplete suggestion: a distinct item name and the templates that
+// include it (e.g. "sleeping bag" → ["Backpacking", "Car Camping"]).
+type NameSuggestion = { name: string; templates: string[] };
 
 // Distinct categorical palette for the donut + legend + section swatches, keyed
 // by the category's alphabetical position. This is data-viz: a chart legitimately
@@ -41,7 +35,13 @@ const fmtBig = (grams: number, unit: Unit) =>
 
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
-  const [draft, setDraft] = useState<Partial<ClosetItem>>(BLANK);
+  const [suggestions, setSuggestions] = useState<NameSuggestion[]>([]);
+  // Categories created via "Add new category" that have no items yet — they
+  // wouldn't appear in the item-derived list until something lands in them.
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  const [newCat, setNewCat] = useState("");
+  // Id of a just-created item whose name field should auto-focus for filling in.
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [unit, setUnit] = useState<Unit>(() =>
     typeof localStorage !== "undefined" && localStorage.getItem("closet-unit") === "imperial"
@@ -75,6 +75,28 @@ export function Closet({ scout }: { scout: Scout }) {
     api.listCloset(scout.id).then(setItems).catch((e: Error) => setErr(e.message));
   }, [scout.id]);
 
+  // Build the name autocomplete from every published template: group items by
+  // name and remember which templates each one appears in.
+  useEffect(() => {
+    Promise.all(EVENT_TYPES.map((t) => api.getTemplate(t).catch(() => null))).then(
+      (bundles) => {
+        const byName = new Map<string, NameSuggestion>();
+        for (const b of bundles) {
+          if (!b) continue;
+          const label = b.template.name?.trim() || EVENT_TYPE_LABELS[b.template.event_type];
+          for (const it of b.items) {
+            const name = it.name.trim();
+            if (!name) continue;
+            const entry = byName.get(name.toLowerCase()) ?? { name, templates: [] };
+            if (!entry.templates.includes(label)) entry.templates.push(label);
+            byName.set(name.toLowerCase(), entry);
+          }
+        }
+        setSuggestions([...byName.values()].sort((a, b) => a.name.localeCompare(b.name)));
+      },
+    );
+  }, []);
+
   const categories = useMemo(
     () => [...new Set((items ?? []).map((i) => i.category))].sort((a, b) => a.localeCompare(b)),
     [items],
@@ -104,19 +126,28 @@ export function Closet({ scout }: { scout: Scout }) {
       .catch((e: Error) => setErr(e.message));
   }
 
-  async function add() {
-    if (!draft.name?.trim() || !draft.category?.trim()) return;
+  // Create a blank, fillable item in the given category and focus its name.
+  async function addItemTo(category: string) {
     try {
       const created = await api.createClosetItem(scout.id, {
-        ...draft,
-        name: draft.name.trim(),
-        category: draft.category.trim(),
+        name: "New item",
+        category,
+        quantity: 1,
       });
       setItems((items) => [...(items ?? []), created]);
-      setDraft(BLANK);
+      setFocusId(created.id);
     } catch (e) {
       setErr((e as Error).message);
     }
+  }
+
+  function addCategory() {
+    const c = newCat.trim();
+    if (!c) return;
+    if (!categories.includes(c) && !extraCategories.includes(c)) {
+      setExtraCategories((x) => [...x, c]);
+    }
+    setNewCat("");
   }
 
   async function remove(id: string) {
@@ -201,6 +232,10 @@ export function Closet({ scout }: { scout: Scout }) {
     arr.push(it);
     byCategory.set(it.category, arr);
   }
+  // Item-derived categories plus any still-empty ones added by the user.
+  const renderCats = [...new Set([...categories, ...extraCategories])].sort((a, b) =>
+    a.localeCompare(b),
+  );
 
   return (
     <div className="sp-page sp-closet">
@@ -214,7 +249,7 @@ export function Closet({ scout }: { scout: Scout }) {
 
       {items.length > 0 && <PackSummary items={items} colorFor={colorFor} unit={unit} />}
 
-      {categories.map((cat) => {
+      {renderCats.map((cat) => {
         const list = byCategory.get(cat) ?? [];
         const subtotal = list.reduce((acc, it) => acc + weightOf(it), 0);
         const count = list.reduce((acc, it) => acc + it.quantity, 0);
@@ -248,6 +283,8 @@ export function Closet({ scout }: { scout: Scout }) {
                     key={it.id}
                     item={it}
                     scoutId={scout.id}
+                    suggestions={suggestions}
+                    autoFocusName={focusId === it.id}
                     dragOver={dragOverId === it.id}
                     linkEditing={linkEditId === it.id}
                     onDragStart={() => setDragId(it.id)}
@@ -284,61 +321,27 @@ export function Closet({ scout }: { scout: Scout }) {
               </tfoot>
             </table>
             </div>
+            <div className="sp-addmore">
+              <Button size="sm" variant="ghost" onClick={() => addItemTo(cat)}>
+                + Add new item
+              </Button>
+            </div>
           </section>
         );
       })}
-      {!items.length && <EmptyState>No items yet. Add gear you own below.</EmptyState>}
+
+      <div className="sp-addcat">
+        <input
+          className="sp-cell"
+          placeholder="New category name"
+          value={newCat}
+          onChange={(e) => setNewCat(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+        />
+        <Button onClick={addCategory} disabled={!newCat.trim()}>+ Add new category</Button>
+      </div>
 
       <div className="sp-tools">
-        <section>
-          <SectionLabel>Add gear</SectionLabel>
-          <div className="sp-addrow">
-            <Field label="Name">
-              <input value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            </Field>
-            <Field label="Category">
-              <input value={draft.category ?? ""} onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
-            </Field>
-            <Field label="Brand">
-              <input value={draft.brand ?? ""} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} />
-            </Field>
-            <Field label="Weight" hint="g">
-              <input
-                type="number"
-                value={draft.weight_grams ?? ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, weight_grams: e.target.value ? Number(e.target.value) : null })
-                }
-              />
-            </Field>
-            <Field label="Qty">
-              <input
-                type="number"
-                min={1}
-                value={draft.quantity ?? 1}
-                onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
-              />
-            </Field>
-            <label className="sp-check">
-              <input
-                type="checkbox"
-                checked={!!draft.is_worn}
-                onChange={(e) => setDraft({ ...draft, is_worn: e.target.checked ? 1 : 0 })}
-              />
-              worn
-            </label>
-            <label className="sp-check">
-              <input
-                type="checkbox"
-                checked={!!draft.is_consumable}
-                onChange={(e) => setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })}
-              />
-              consumable
-            </label>
-            <Button variant="primary" onClick={add}>Add</Button>
-          </div>
-        </section>
-
         <ImportSection
           scout={scout}
           onImported={(created) => setItems((items) => [...(items ?? []), ...created])}
@@ -348,9 +351,128 @@ export function Closet({ scout }: { scout: Scout }) {
   );
 }
 
+// Name cell with a template-driven autocomplete. Typing filters the suggestion
+// list; each row shows the full item name and the templates it belongs to.
+function NameInput({
+  value,
+  suggestions,
+  autoFocus,
+  onChange,
+  onCommit,
+}: {
+  value: string;
+  suggestions: NameSuggestion[];
+  autoFocus?: boolean;
+  onChange: (v: string) => void;
+  onCommit: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  // Anchor coords for the dropdown. It's rendered position:fixed so it can
+  // escape the table's overflow:auto clipping; we track the input's rect here.
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      ref.current?.focus();
+      ref.current?.select();
+    }
+  }, [autoFocus]);
+
+  const q = value.trim().toLowerCase();
+  const matches = q
+    ? suggestions.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 8)
+    : [];
+
+  // Keep the fixed dropdown glued to the input as the page/table scrolls.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, value]);
+
+  function pick(s: NameSuggestion) {
+    onChange(s.name);
+    onCommit(s.name);
+    setOpen(false);
+  }
+
+  return (
+    <div className="sp-nameac">
+      <input
+        ref={ref}
+        className="sp-cell"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setActive(0);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={(e) => {
+          // Delay so an option's onMouseDown can fire before the list unmounts.
+          setTimeout(() => setOpen(false), 120);
+          onCommit(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (!open || !matches.length) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActive((a) => Math.min(a + 1, matches.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            pick(matches[active]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+      />
+      {open && matches.length > 0 && pos && (
+        <ul
+          className="sp-ac"
+          role="listbox"
+          style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
+        >
+          {matches.map((s, i) => (
+            <li
+              key={s.name}
+              role="option"
+              aria-selected={i === active}
+              className={i === active ? "is-active" : ""}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(s);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="sp-ac__name">{s.name}</span>
+              <span className="sp-ac__tpl">{s.templates.join(", ")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function GearRow({
   item,
   scoutId,
+  suggestions,
+  autoFocusName,
   dragOver,
   linkEditing,
   onDragStart,
@@ -368,6 +490,8 @@ function GearRow({
 }: {
   item: ClosetItem;
   scoutId: string;
+  suggestions: NameSuggestion[];
+  autoFocusName: boolean;
   dragOver: boolean;
   linkEditing: boolean;
   onDragStart: () => void;
@@ -406,11 +530,12 @@ function GearRow({
           </span>
         </td>
         <td>
-          <input
-            className="sp-cell"
+          <NameInput
             value={item.name}
-            onChange={(e) => onEditLocal({ name: e.target.value })}
-            onBlur={(e) => onPatch({ name: e.target.value.trim() || item.name })}
+            suggestions={suggestions}
+            autoFocus={autoFocusName}
+            onChange={(v) => onEditLocal({ name: v })}
+            onCommit={(v) => onPatch({ name: v.trim() || item.name })}
           />
         </td>
         <td>
