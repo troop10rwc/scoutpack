@@ -15,6 +15,8 @@ type BundleOrEmpty =
 const weightOf = (it: PackingItemView) =>
   (it.closet_item?.weight_grams ?? 0) * it.quantity;
 const fmtKg = (grams: number) => `${(grams / 1000).toFixed(2)} kg`;
+// Quantities are small — clamp to 1–99 so the column stays two digits wide.
+const clampQty = (v: string | number) => Math.min(99, Math.max(1, Math.floor(Number(v)) || 1));
 
 export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string }) {
   const [bundle, setBundle] = useState<BundleOrEmpty | null>(null);
@@ -424,9 +426,10 @@ function PackRow({
           className="sp-cell t10-num sp-gear__qty"
           type="number"
           min={1}
+          max={99}
           value={item.quantity}
-          onChange={(e) => onEditLocal({ quantity: Number(e.target.value) || 1 })}
-          onBlur={(e) => onPatch({ quantity: Number(e.target.value) || 1 })}
+          onChange={(e) => onEditLocal({ quantity: clampQty(e.target.value) })}
+          onBlur={(e) => onPatch({ quantity: clampQty(e.target.value) })}
         />
       </td>
       <td className="sp-gear__del">

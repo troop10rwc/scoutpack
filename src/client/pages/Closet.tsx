@@ -28,6 +28,9 @@ const weightOf = (it: ClosetItem) => (it.weight_grams ?? 0) * it.quantity;
 // Per-item weights are edited/displayed in grams; subtotals/totals use kg or lb.
 const fmtBig = (grams: number, unit: Unit) =>
   unit === "imperial" ? `${(grams / 453.592).toFixed(2)} lb` : `${(grams / 1000).toFixed(2)} kg`;
+// Gear quantities are small — clamp to 1–99 so the column stays two digits wide
+// and totals can't balloon out of their column.
+const clampQty = (v: string | number) => Math.min(99, Math.max(1, Math.floor(Number(v)) || 1));
 
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
@@ -466,9 +469,10 @@ function GearRow({
             className="sp-cell t10-num sp-gear__qty"
             type="number"
             min={1}
+            max={99}
             value={item.quantity}
-            onChange={(e) => onEditLocal({ quantity: Number(e.target.value) || 1 })}
-            onBlur={(e) => onPatch({ quantity: Number(e.target.value) || 1 })}
+            onChange={(e) => onEditLocal({ quantity: clampQty(e.target.value) })}
+            onBlur={(e) => onPatch({ quantity: clampQty(e.target.value) })}
           />
         </td>
         <td className="sp-gear__del">
