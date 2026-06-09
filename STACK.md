@@ -3,13 +3,13 @@
 **scoutpack** — a Troop 10 scout gear tracker. One-liner: a TypeScript
 serverless app — React/Vite SPA + Hono on Cloudflare Workers, D1 (SQLite) for
 data, Cloudflare Access (Slack SSO) for auth. Served same-origin at
-`troop10rwc.org/gearlist`.
+`troop10rwc.org/manage/gearlist`.
 
 ## Runtime & hosting
 - **Cloudflare Workers** — the whole app (API + static assets) runs at the edge,
-  deployed via **Wrangler**, served at `troop10rwc.org/gearlist*` (Worker route).
+  deployed via **Wrangler**, served at `troop10rwc.org/manage/gearlist*` (Worker route).
 - **Cloudflare Workers Static Assets** (`ASSETS` binding, single-page-application
-  fallback) serves the built frontend. The Worker owns the whole `/gearlist/*`
+  fallback) serves the built frontend. The Worker owns the whole `/manage/gearlist/*`
   subpath: strips the base prefix, routes `/api/*` to Hono, else serves assets.
 
 ## Backend
@@ -25,7 +25,7 @@ data, Cloudflare Access (Slack SSO) for auth. Served same-origin at
 ## Frontend
 - **React 19** + **Vite 6** SPA, TypeScript, hand-written CSS (no UI framework).
 - **`@cloudflare/vite-plugin`** — runs the Worker in the Workers runtime during
-  `vite dev` and produces the deploy bundle. Vite `base: "/gearlist/"`.
+  `vite dev` and produces the deploy bundle. Vite `base: "/manage/gearlist/"`.
 - Client routing/auth gating done manually (no router library).
 
 ## Auth

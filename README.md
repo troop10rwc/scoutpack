@@ -3,7 +3,7 @@
 Troop 10 scout gear tracker — per-scout closets, leader-curated packing-list
 templates per trip type, calendar-aware "what am I missing for this event".
 
-Served same-origin at `troop10rwc.org/gearlist`. See [`STACK.md`](./STACK.md)
+Served same-origin at `troop10rwc.org/manage/gearlist`. See [`STACK.md`](./STACK.md)
 for the tech stack overview.
 
 ## Setup
@@ -83,7 +83,7 @@ Run:
 
 ```bash
 npm run dev
-# open http://localhost:5173/gearlist/
+# open http://localhost:5173/manage/gearlist/
 ```
 
 ## Deploy

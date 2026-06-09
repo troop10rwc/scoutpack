@@ -10,7 +10,7 @@
     "ENVIRONMENT": "production",
     "CF_ACCESS_TEAM_DOMAIN": "troop10rwc.cloudflareaccess.com",
     // Shared with patrol-expense: a single Access application protects both
-    // /expenses* and /gearlist* on troop10rwc.org, so the same AUD validates
+    // /expenses* and /manage/gearlist* on troop10rwc.org, so the same AUD validates
     // JWTs for both apps.
     "CF_ACCESS_AUD": "070c36323eb0321ed17203a1b6997e7489cac583535f93e933a61ba274a02c0b",
     // A separate Access application protects this Worker's *.workers.dev preview
@@ -26,20 +26,20 @@
   // Worker, so they share the production bindings/D1 — protect them with the
   // CF_ACCESS_AUD_PREVIEW Access application above.
   "preview_urls": true,
-  // Serve the app as a same-origin tab at troop10rwc.org/gearlist. Requires
+  // Serve the app as a same-origin tab at troop10rwc.org/manage/gearlist. Requires
   // troop10rwc.org to be a Cloudflare zone on this account (proxied DNS).
   // Everything else on the domain falls through to the existing site.
   "routes": [
-    { "pattern": "troop10rwc.org/gearlist*", "zone_name": "troop10rwc.org" }
+    { "pattern": "troop10rwc.org/manage/gearlist*", "zone_name": "troop10rwc.org" }
   ],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // The app is mounted under /gearlist. The Worker owns the whole subpath:
+    // The app is mounted under /manage/gearlist. The Worker owns the whole subpath:
     // it strips the prefix and serves the API, auth, and (via the ASSETS
-    // binding) the SPA — since assets are built with Vite base "/gearlist/"
+    // binding) the SPA — since assets are built with Vite base "/manage/gearlist/"
     // but stored at their root paths.
-    "run_worker_first": ["/gearlist/*"]
+    "run_worker_first": ["/manage/gearlist/*"]
   },
   // Stores closet item photos. Shared by production and *.workers.dev previews
   // (same bindings ship to both), so preview uploads land in the same bucket.

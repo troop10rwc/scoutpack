@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 export default defineConfig({
-  // Mounted as a same-origin tab at troop10rwc.org/gearlist.
-  base: "/gearlist/",
+  // Mounted as a same-origin tab at troop10rwc.org/manage/gearlist.
+  base: "/manage/gearlist/",
   plugins: [react(), cloudflare()],
 });

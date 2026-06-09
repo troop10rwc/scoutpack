@@ -450,7 +450,7 @@ api.notFound((c) => c.json(bad("not found"), 404));
 
 app.route("/api", api);
 
-// Mount handler — strips /gearlist prefix, routes /api to Hono, else SPA.
+// Mount handler — strips /manage/gearlist prefix, routes /api to Hono, else SPA.
 export default {
   async fetch(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -465,7 +465,7 @@ export default {
       return app.fetch(new Request(inner.toString(), request), env, ctx);
     }
 
-    // In dev Vite expects the /gearlist-prefixed path; in prod the built files
+    // In dev Vite expects the /manage/gearlist-prefixed path; in prod the built files
     // live at root, so the prefix is stripped.
     if (env.ENVIRONMENT === "development") {
       return env.ASSETS.fetch(request);

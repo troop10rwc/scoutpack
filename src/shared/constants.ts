@@ -1,6 +1,6 @@
 // The app is mounted under this path on troop10rwc.org (same-origin tab).
 // Everything — assets, API, auth, cookies — lives beneath it.
-export const BASE_PATH = "/gearlist";
+export const BASE_PATH = "/manage/gearlist";
 
 export const EVENT_TYPES = [
   "summer_camp",
