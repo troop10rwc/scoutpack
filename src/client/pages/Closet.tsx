@@ -244,7 +244,7 @@ export function Closet({ scout }: { scout: Scout }) {
                 <tr>
                   <th className="sp-gear__grip"></th>
                   <th className="sp-gear__name">Item</th>
-                  <th>Description</th>
+                  <th className="sp-gear__desc">Description</th>
                   <th></th>
                   <th className="is-right">Weight</th>
                   <th className="is-right">Qty</th>
@@ -395,7 +395,7 @@ function GearRow({
             onCommit={(v) => onPatch({ name: v.trim() || item.name })}
           />
         </td>
-        <td>
+        <td className="sp-gear__desc">
           <input
             className="sp-cell sp-cell--soft"
             placeholder="description"

@@ -65,9 +65,10 @@
 .sp-gear { width: 100%; border-collapse: collapse; }
 /* Every column shrinks to fit its content (numbers stay right-aligned)… */
 .sp-gear th, .sp-gear td { white-space: nowrap; }
-/* …except Description (3rd col), which absorbs all the remaining width.
-   Scoped to thead/tbody: the tfoot row has a colSpan cell that shifts indices. */
-.sp-gear thead th:nth-child(3), .sp-gear tbody td:nth-child(3) { width: 100%; }
+/* …except Description, which absorbs all the remaining width. Keyed off a class
+   (not nth-child) so the column survives layout differences — e.g. the packing
+   table prepends a drag-grip column the closet's header order doesn't have. */
+.sp-gear__desc { width: 100%; }
 /* Name holds an editable input with no intrinsic width. A min-width on its
    wrapper sets the column's floor so the greedy Description column can't starve
    it below a usable size (a plain `width` would lose to the 100% column). */

@@ -25,6 +25,9 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   const [newCat, setNewCat] = useState("");
   // Id of a just-added item whose name field should auto-focus for filling in.
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Drag-reorder state (mirrors the closet ledger).
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const ev = bundle?.event ?? null;
   usePageChrome(
@@ -60,6 +63,50 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
       .updatePackingListItem(scout.id, id, fields)
       .then((updated) => setItems((items) => items.map((it) => (it.id === id ? updated : it))))
       .catch((e: Error) => setErr(e.message));
+  }
+
+  // --- drag reorder (within + across categories), mirroring the closet ---
+  function persistOrder(list: PackingItemView[]) {
+    api
+      .reorderPacking(
+        scout.id,
+        list.map((i) => ({ id: i.id, category: i.category, sort_order: i.sort_order })),
+      )
+      .catch((e: Error) => setErr(e.message));
+  }
+  function dropOn(targetCategory: string, beforeId: string | null) {
+    const id = dragId;
+    setDragId(null);
+    setDragOverId(null);
+    if (!id) return;
+    setItems((prev) => {
+      const drag = prev.find((i) => i.id === id);
+      if (!drag) return prev;
+      const without = prev.filter((i) => i.id !== id);
+      const moved: PackingItemView = { ...drag, category: targetCategory };
+      let at: number;
+      if (beforeId) {
+        at = without.findIndex((i) => i.id === beforeId);
+        if (at < 0) at = without.length;
+      } else {
+        // Append after the last item already in the target category.
+        let last = -1;
+        without.forEach((i, idx) => {
+          if (i.category === targetCategory) last = idx;
+        });
+        at = last === -1 ? without.length : last + 1;
+      }
+      const next = [...without.slice(0, at), moved, ...without.slice(at)];
+      // Re-number sort_order within each category to match the new arrangement.
+      const counter = new Map<string, number>();
+      const renumbered = next.map((it) => {
+        const n = counter.get(it.category) ?? 0;
+        counter.set(it.category, n + 1);
+        return it.sort_order === n ? it : { ...it, sort_order: n };
+      });
+      persistOrder(renumbered);
+      return renumbered;
+    });
   }
 
   async function generate() {
@@ -175,15 +222,21 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
         const subtotal = list.reduce((a, it) => a + weightOf(it), 0);
         const count = list.reduce((a, it) => a + it.quantity, 0);
         return (
-          <section key={cat} className="sp-cat">
+          <section
+            key={cat}
+            className="sp-cat"
+            onDragOver={(e) => dragId && e.preventDefault()}
+            onDrop={() => dragId && dropOn(cat, null)}
+          >
             <h2 className="sp-cat__head">{cat}</h2>
             <div className="sp-gearwrap">
               <table className="sp-gear">
                 <thead>
                   <tr>
+                    <th className="sp-gear__grip"></th>
                     <th className="sp-gear__check" title="Packed">✓</th>
                     <th className="sp-gear__name">Item</th>
-                    <th>Description</th>
+                    <th className="sp-gear__desc">Description</th>
                     <th></th>
                     <th className="is-right">Weight</th>
                     <th className="is-right">Qty</th>
@@ -197,6 +250,17 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       item={it}
                       suggestions={suggestions}
                       autoFocusName={focusId === it.id}
+                      dragOver={dragOverId === it.id}
+                      onDragStart={() => setDragId(it.id)}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setDragOverId(null);
+                      }}
+                      onDragEnter={() => dragId && dragId !== it.id && setDragOverId(it.id)}
+                      onDropRow={(e) => {
+                        e.stopPropagation();
+                        dropOn(it.category, it.id);
+                      }}
                       onTogglePacked={(p) => patch(it.id, { packed: p })}
                       onEditLocal={(f) => editLocal(it.id, f)}
                       onPatch={(f) => patch(it.id, f)}
@@ -207,7 +271,7 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={4}></td>
+                    <td colSpan={5}></td>
                     <td className="is-right t10-num">{fmtKg(subtotal)}</td>
                     <td className="is-right t10-num">{count}</td>
                     <td className="sp-gear__del"></td>
@@ -244,6 +308,11 @@ function PackRow({
   item,
   suggestions,
   autoFocusName,
+  dragOver,
+  onDragStart,
+  onDragEnd,
+  onDragEnter,
+  onDropRow,
   onTogglePacked,
   onEditLocal,
   onPatch,
@@ -253,6 +322,11 @@ function PackRow({
   item: PackingItemView;
   suggestions: NameSuggestion[];
   autoFocusName: boolean;
+  dragOver: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragEnter: () => void;
+  onDropRow: (e: React.DragEvent) => void;
   onTogglePacked: (packed: boolean) => void;
   onEditLocal: (f: Partial<PackingItemView>) => void;
   onPatch: (f: Parameters<typeof api.updatePackingListItem>[2]) => void;
@@ -261,7 +335,23 @@ function PackRow({
 }) {
   const weight = item.closet_item?.weight_grams ?? null;
   return (
-    <tr className={item.owned ? "" : "is-missing"}>
+    <tr
+      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}`}
+      onDragOver={(e) => e.preventDefault()}
+      onDragEnter={onDragEnter}
+      onDrop={onDropRow}
+    >
+      <td className="sp-gear__grip">
+        <span
+          className="sp-grip"
+          draggable
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          title="Drag to reorder"
+        >
+          ⠿
+        </span>
+      </td>
       <td className="sp-gear__check">
         <input
           type="checkbox"
@@ -281,7 +371,7 @@ function PackRow({
           onCommit={(v) => onPatch({ name: v.trim() || item.name })}
         />
       </td>
-      <td>
+      <td className="sp-gear__desc">
         <input
           className="sp-cell sp-cell--soft"
           placeholder="description"

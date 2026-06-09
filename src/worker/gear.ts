@@ -715,6 +715,38 @@ export async function updatePackingListItem(
   return loadPackingItem(db, scoutId, itemId);
 }
 
+// Apply a drag ordering (and category membership) to packing-list items. Each
+// entry carries the item's new category + sort_order. Ownership is verified by
+// joining back to the scout's packing lists; only owned ids are written.
+export async function reorderPackingItems(
+  db: D1Database,
+  scoutId: string,
+  order: { id: string; category: string; sort_order: number }[],
+): Promise<boolean> {
+  if (!order.length) return true;
+  const ids = order.map((o) => o.id);
+  const placeholders = ids.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(
+      `SELECT pli.id FROM packing_list_items pli
+        JOIN packing_lists pl ON pl.id = pli.packing_list_id
+       WHERE pl.scout_id = ? AND pli.id IN (${placeholders})`,
+    )
+    .bind(scoutId, ...ids)
+    .all<{ id: string }>();
+  const owned = new Set((results ?? []).map((r) => r.id));
+  const valid = order.filter((o) => owned.has(o.id));
+  if (!valid.length) return false;
+  await db.batch(
+    valid.map((o) =>
+      db
+        .prepare(`UPDATE packing_list_items SET category=?, sort_order=? WHERE id=?`)
+        .bind(o.category, o.sort_order, o.id),
+    ),
+  );
+  return true;
+}
+
 // Per-scout packing stats for a set of events. Used by the dashboard.
 export async function attachPackingStats(
   db: D1Database,

@@ -145,6 +145,14 @@ export const api = {
     request<{ ok: boolean }>(`/scouts/${scoutId}/packing-list-items/${itemId}`, {
       method: "DELETE",
     }),
+  reorderPacking: (
+    scoutId: string,
+    order: { id: string; category: string; sort_order: number }[],
+  ) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/packing-list-items/order`, {
+      method: "PUT",
+      body: JSON.stringify({ order }),
+    }),
 
   // Leader-only roster management. setRosterOverride sets the manual override
   // layered on top of roster-db resolution; null clears it.

@@ -38,6 +38,7 @@ import {
   previewClosetImport,
   publishTemplate,
   reorderCloset,
+  reorderPackingItems,
   setClosetImageKey,
   updateClosetItem,
   updatePackingListItem,
@@ -397,6 +398,19 @@ api.delete("/scouts/:scoutId/packing-list-items/:itemId", async (c) => {
   await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
   const ok = await deletePackingListItem(c.env.DB, scoutId, c.req.param("itemId"));
   return ok ? c.json({ ok: true }) : c.json(bad("item not found"), 404);
+});
+
+// Apply a new drag ordering across packing-list categories.
+// Body: { order: [{id, category, sort_order}] }.
+api.put("/scouts/:scoutId/packing-list-items/order", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{
+    order?: { id: string; category: string; sort_order: number }[];
+  }>();
+  if (!Array.isArray(body.order)) return c.json(bad("order is required"), 400);
+  const ok = await reorderPackingItems(c.env.DB, scoutId, body.order);
+  return ok ? c.json({ ok: true }) : c.json(bad("no valid items"), 400);
 });
 
 // ---- templates ----
