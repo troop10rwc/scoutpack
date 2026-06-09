@@ -23,10 +23,12 @@ import {
   setOverride,
 } from "./roster.ts";
 import {
+  addPackingListItem,
   attachPackingStats,
   createPackingList,
   deleteClosetItem,
   createClosetItem,
+  deletePackingListItem,
   getActiveTemplate,
   getClosetItem,
   importClosetItems,
@@ -36,6 +38,7 @@ import {
   previewClosetImport,
   publishTemplate,
   reorderCloset,
+  reorderPackingItems,
   setClosetImageKey,
   updateClosetItem,
   updatePackingListItem,
@@ -346,6 +349,33 @@ api.post("/scouts/:scoutId/packing-lists", async (c) => {
   }
 });
 
+// Add an item to an existing packing list. The list is identified by id in the
+// body and re-checked for scout ownership inside addPackingListItem.
+api.post("/scouts/:scoutId/packing-list-items", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{
+    packing_list_id?: string;
+    name?: string;
+    category?: string;
+    description?: string | null;
+    quantity?: number;
+    is_worn?: boolean;
+    is_consumable?: boolean;
+  }>();
+  if (!body.packing_list_id || !body.name || !body.category)
+    return c.json(bad("packing_list_id, name and category are required"), 400);
+  const item = await addPackingListItem(c.env.DB, scoutId, body.packing_list_id, {
+    name: body.name,
+    category: body.category,
+    description: body.description ?? null,
+    quantity: body.quantity,
+    is_worn: body.is_worn,
+    is_consumable: body.is_consumable,
+  });
+  return item ? c.json(item, 201) : c.json(bad("packing list not found"), 404);
+});
+
 api.patch("/scouts/:scoutId/packing-list-items/:itemId", async (c) => {
   const scoutId = c.req.param("scoutId");
   await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
@@ -353,9 +383,34 @@ api.patch("/scouts/:scoutId/packing-list-items/:itemId", async (c) => {
     packed?: boolean;
     quantity?: number;
     closet_item_id?: string | null;
+    name?: string;
+    category?: string;
+    description?: string | null;
+    is_worn?: boolean;
+    is_consumable?: boolean;
   }>();
-  const ok = await updatePackingListItem(c.env.DB, scoutId, c.req.param("itemId"), body);
+  const item = await updatePackingListItem(c.env.DB, scoutId, c.req.param("itemId"), body);
+  return item ? c.json(item) : c.json(bad("item not found"), 404);
+});
+
+api.delete("/scouts/:scoutId/packing-list-items/:itemId", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const ok = await deletePackingListItem(c.env.DB, scoutId, c.req.param("itemId"));
   return ok ? c.json({ ok: true }) : c.json(bad("item not found"), 404);
+});
+
+// Apply a new drag ordering across packing-list categories.
+// Body: { order: [{id, category, sort_order}] }.
+api.put("/scouts/:scoutId/packing-list-items/order", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<{
+    order?: { id: string; category: string; sort_order: number }[];
+  }>();
+  if (!Array.isArray(body.order)) return c.json(bad("order is required"), 400);
+  const ok = await reorderPackingItems(c.env.DB, scoutId, body.order);
+  return ok ? c.json({ ok: true }) : c.json(bad("no valid items"), 400);
 });
 
 // ---- templates ----

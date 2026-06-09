@@ -4,6 +4,7 @@ import type {
   ImportPreviewItem,
   LeaderEventRow,
   Me,
+  PackingItemView,
   PackingListBundle,
   Position,
   RosterMember,
@@ -109,11 +110,48 @@ export const api = {
   updatePackingListItem: (
     scoutId: string,
     itemId: string,
-    body: { packed?: boolean; quantity?: number; closet_item_id?: string | null },
+    body: {
+      packed?: boolean;
+      quantity?: number;
+      closet_item_id?: string | null;
+      name?: string;
+      category?: string;
+      description?: string | null;
+      is_worn?: boolean;
+      is_consumable?: boolean;
+    },
   ) =>
-    request<{ ok: boolean }>(`/scouts/${scoutId}/packing-list-items/${itemId}`, {
+    request<PackingItemView>(`/scouts/${scoutId}/packing-list-items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  addPackingListItem: (
+    scoutId: string,
+    body: {
+      packing_list_id: string;
+      name: string;
+      category: string;
+      description?: string | null;
+      quantity?: number;
+      is_worn?: boolean;
+      is_consumable?: boolean;
+    },
+  ) =>
+    request<PackingItemView>(`/scouts/${scoutId}/packing-list-items`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deletePackingListItem: (scoutId: string, itemId: string) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/packing-list-items/${itemId}`, {
+      method: "DELETE",
+    }),
+  reorderPacking: (
+    scoutId: string,
+    order: { id: string; category: string; sort_order: number }[],
+  ) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/packing-list-items/order`, {
+      method: "PUT",
+      body: JSON.stringify({ order }),
     }),
 
   // Leader-only roster management. setRosterOverride sets the manual override

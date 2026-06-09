@@ -30,17 +30,6 @@
 .sp-event__date { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
 .sp-event__stats { display: flex; gap: var(--t10-s4); align-items: center; color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
 
-/* ---- EventDetail: packing-list rows -------------------------------------- */
-.sp-packing { list-style: none; margin: 0; padding: 0; }
-.sp-packing li {
-  display: flex; align-items: center; gap: var(--t10-s2);
-  padding: 6px var(--t10-s2); border-bottom: 1px solid var(--t10-line-soft);
-}
-.sp-packing li.is-missing { background: var(--t10-clay-tint); border-radius: var(--t10-r-sm); }
-.sp-packing__check { accent-color: var(--t10-clay); }
-.sp-packing__name { flex: 1; }
-.sp-packing__qty { color: var(--t10-ink-faint); margin-left: 2px; }
-
 /* ---- Roster: member cell (full name over email) -------------------------- */
 .sp-member { display: flex; flex-direction: column; gap: 1px; }
 .sp-member__email { font-size: var(--t10-fs-xs); }
@@ -74,9 +63,17 @@
 }
 .sp-gearwrap { overflow-x: auto; }
 .sp-gear { width: 100%; border-collapse: collapse; }
-.sp-gear__name { min-width: 11rem; }
-.sp-gear td:nth-child(2) { min-width: 11rem; }
-.sp-gear td:nth-child(3) { min-width: 9rem; }
+/* Every column shrinks to fit its content (numbers stay right-aligned)… */
+.sp-gear th, .sp-gear td { white-space: nowrap; }
+/* …except Description, which absorbs all the remaining width. Keyed off a class
+   (not nth-child) so the column survives layout differences — e.g. the packing
+   table prepends a drag-grip column the closet's header order doesn't have. */
+.sp-gear__desc { width: 100%; }
+/* Name holds an editable input with no intrinsic width. A min-width on its
+   wrapper sets the column's floor so the greedy Description column can't starve
+   it below a usable size (a plain `width` would lose to the 100% column). */
+.sp-gear__name { min-width: 12rem; }
+.sp-nameac { min-width: 12rem; }
 .sp-gear th {
   text-align: left; font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
@@ -87,12 +84,24 @@
 .sp-gear td.is-right { text-align: right; white-space: nowrap; }
 .sp-gear tfoot td { border-bottom: none; border-top: 1px solid var(--t10-line); font-weight: 600; padding-top: 4px; }
 .sp-gear tr.is-dragover td { box-shadow: inset 0 2px 0 0 var(--t10-pine); }
+/* Packing list: packed checkbox column + "missing from closet" row tint. */
+.sp-gear__check { width: 2rem; text-align: center; }
+.sp-gear__check input { accent-color: var(--t10-clay); cursor: pointer; }
+.sp-gear tr.is-missing td { background: var(--t10-clay-tint); }
 .sp-gear__grip { width: 1.2rem; padding-right: 0; }
 .sp-gear__del { width: 2rem; text-align: right; }
 .sp-gear__acts { white-space: nowrap; }
 .sp-gear__weight { white-space: nowrap; }
 .sp-gear__weight .sp-cell { width: 5rem; display: inline-block; }
-.sp-gear__qty { width: 3.5rem; display: inline-block; }
+/* Compound selector so this beats `.sp-cell { width: 100% }` (equal specificity,
+   later in source) — otherwise the qty input collapses to its column width.
+   Quantities are clamped to two digits, so the field only needs to be that wide. */
+.sp-cell.sp-gear__qty { width: 2.5rem; display: inline-block; }
+/* Drop native number spinners — they crowd the narrow weight/qty cells and hide
+   the value. The fields stay type=number (mobile keypad) but read as plain text. */
+.sp-gear input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.sp-gear input[type="number"]::-webkit-outer-spin-button,
+.sp-gear input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .sp-grip { cursor: grab; color: var(--t10-ink-faint); user-select: none; font-size: 1rem; line-height: 1; }
 .sp-grip:active { cursor: grabbing; }
@@ -111,6 +120,7 @@
 
 /* icon buttons (photo / link / worn / consumable / favorite / delete) */
 .sp-iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; color: var(--t10-ink-faint);
   padding: 3px; cursor: pointer; border-radius: var(--t10-r-sm);
   vertical-align: middle; line-height: 0;
@@ -120,6 +130,9 @@
 .sp-iconbtn--link { font-size: .85rem; line-height: 1; text-decoration: none; color: var(--t10-pine); }
 .sp-iconbtn--del { font-size: 1.1rem; line-height: 1; color: var(--t10-ink-faint); }
 .sp-iconbtn--del:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+/* "Not in your closet — click to add" affordance on packing rows. */
+.sp-iconbtn--add { color: var(--t10-clay); }
+.sp-iconbtn--add:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
 
 .sp-thumbwrap { position: relative; display: inline-block; vertical-align: middle; }
 .sp-thumb {
@@ -132,6 +145,32 @@
   line-height: 13px; border: none; cursor: pointer;
 }
 .sp-linkrow td { border-bottom: 1px dotted var(--t10-line); padding-top: 0; }
+
+/* name cell autocomplete (suggestions sourced from templates) */
+.sp-nameac { position: relative; }
+.sp-ac {
+  position: fixed; z-index: 50; margin: 2px 0 0;
+  width: max-content; max-width: 22rem; max-height: 16rem; overflow-y: auto;
+  list-style: none; padding: 4px; background: var(--t10-surface);
+  border: 1px solid var(--t10-line); border-radius: var(--t10-r-sm);
+  box-shadow: var(--t10-shadow-pop, 0 6px 24px rgba(0, 0, 0, .14));
+}
+.sp-ac li {
+  display: flex; flex-direction: column; gap: 1px; padding: 5px 8px;
+  border-radius: var(--t10-r-sm); cursor: pointer;
+}
+.sp-ac li.is-active { background: var(--t10-surface-3); }
+.sp-ac__name { font-size: var(--t10-fs-sm); color: var(--t10-ink); }
+.sp-ac__tpl { font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); }
+
+/* per-section "add new item" + bottom "add new category" controls */
+.sp-addmore { margin-top: var(--t10-s1); }
+.sp-addcat {
+  display: flex; gap: var(--t10-s2); align-items: center;
+  margin-top: var(--t10-s5); padding-top: var(--t10-s4);
+  border-top: 1px solid var(--t10-line);
+}
+.sp-addcat .sp-cell { max-width: 16rem; border-color: var(--t10-line); }
 
 /* ---- Closet: tools (add gear + import) ----------------------------------- */
 .sp-tools {

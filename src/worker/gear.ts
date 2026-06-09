@@ -518,19 +518,112 @@ export async function loadPackingListBundle(
   };
 }
 
-export interface PackingItemPatch {
-  packed?: boolean;
-  quantity?: number;
-  closet_item_id?: string | null; // explicit link/unlink
-}
+// The bundle-shaped item the UI consumes: the raw row plus its resolved
+// ownership (linked closet item, if any).
+export type EnrichedPackingItem = PackingListBundle["items"][number];
 
-export async function updatePackingListItem(
+// Load one packing-list item in bundle shape (with owned + closet_item),
+// verifying it belongs to the scout. Returned by add/update so the client can
+// reflect re-linking and ownership without a full reload.
+export async function loadPackingItem(
   db: D1Database,
   scoutId: string,
   itemId: string,
-  patch: PackingItemPatch,
+): Promise<EnrichedPackingItem | null> {
+  const it = await db
+    .prepare(
+      `SELECT pli.* FROM packing_list_items pli
+        JOIN packing_lists pl ON pl.id = pli.packing_list_id
+       WHERE pli.id = ? AND pl.scout_id = ?`,
+    )
+    .bind(itemId, scoutId)
+    .first<PackingListItem>();
+  if (!it) return null;
+  let closet: ClosetItem | null = null;
+  if (it.closet_item_id) {
+    closet = await db
+      .prepare(`SELECT * FROM closet_items WHERE id = ?`)
+      .bind(it.closet_item_id)
+      .first<ClosetItem>();
+  }
+  return { ...it, owned: it.closet_item_id !== null, closet_item: closet };
+}
+
+// The closet item (if any) owned by this scout that matches a gear name. Used
+// to (re)link a packing item to the closet when it's created or renamed.
+async function closetIdForName(
+  db: D1Database,
+  scoutId: string,
+  key: string,
+): Promise<string | null> {
+  const row = await db
+    .prepare(`SELECT id FROM closet_items WHERE scout_id = ? AND match_key = ? LIMIT 1`)
+    .bind(scoutId, key)
+    .first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+export interface NewPackingItem {
+  name: string;
+  category: string;
+  description?: string | null;
+  quantity?: number;
+  is_worn?: boolean;
+  is_consumable?: boolean;
+}
+
+// Add a single item to an existing packing list (verifying list ownership),
+// auto-linking to the closet by match_key. Appends to the end of its category.
+export async function addPackingListItem(
+  db: D1Database,
+  scoutId: string,
+  listId: string,
+  input: NewPackingItem,
+): Promise<EnrichedPackingItem | null> {
+  const list = await db
+    .prepare(`SELECT id FROM packing_lists WHERE id = ? AND scout_id = ?`)
+    .bind(listId, scoutId)
+    .first<{ id: string }>();
+  if (!list) return null;
+  const id = crypto.randomUUID();
+  const key = matchKey(input.name);
+  const so = await db
+    .prepare(
+      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS n
+         FROM packing_list_items WHERE packing_list_id = ? AND category = ?`,
+    )
+    .bind(listId, input.category)
+    .first<{ n: number }>();
+  const closetId = await closetIdForName(db, scoutId, key);
+  await db
+    .prepare(
+      `INSERT INTO packing_list_items
+         (id, packing_list_id, name, description, category, quantity,
+          is_worn, is_consumable, match_key, closet_item_id, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      listId,
+      input.name,
+      input.description ?? null,
+      input.category,
+      input.quantity ?? 1,
+      input.is_worn ? 1 : 0,
+      input.is_consumable ? 1 : 0,
+      key,
+      closetId,
+      so?.n ?? 0,
+    )
+    .run();
+  return loadPackingItem(db, scoutId, id);
+}
+
+export async function deletePackingListItem(
+  db: D1Database,
+  scoutId: string,
+  itemId: string,
 ): Promise<boolean> {
-  // Ownership check via join.
   const row = await db
     .prepare(
       `SELECT pli.id FROM packing_list_items pli
@@ -540,6 +633,37 @@ export async function updatePackingListItem(
     .bind(itemId, scoutId)
     .first<{ id: string }>();
   if (!row) return false;
+  await db.prepare(`DELETE FROM packing_list_items WHERE id = ?`).bind(itemId).run();
+  return true;
+}
+
+export interface PackingItemPatch {
+  packed?: boolean;
+  quantity?: number;
+  closet_item_id?: string | null; // explicit link/unlink
+  name?: string;
+  category?: string;
+  description?: string | null;
+  is_worn?: boolean;
+  is_consumable?: boolean;
+}
+
+export async function updatePackingListItem(
+  db: D1Database,
+  scoutId: string,
+  itemId: string,
+  patch: PackingItemPatch,
+): Promise<EnrichedPackingItem | null> {
+  // Ownership check via join.
+  const row = await db
+    .prepare(
+      `SELECT pli.id FROM packing_list_items pli
+        JOIN packing_lists pl ON pl.id = pli.packing_list_id
+       WHERE pli.id = ? AND pl.scout_id = ?`,
+    )
+    .bind(itemId, scoutId)
+    .first<{ id: string }>();
+  if (!row) return null;
   const fields: string[] = [];
   const binds: (string | number | null)[] = [];
   if (patch.packed !== undefined) {
@@ -550,16 +674,76 @@ export async function updatePackingListItem(
     fields.push("quantity = ?");
     binds.push(patch.quantity);
   }
+  if (patch.category !== undefined) {
+    fields.push("category = ?");
+    binds.push(patch.category);
+  }
+  if (patch.description !== undefined) {
+    fields.push("description = ?");
+    binds.push(patch.description);
+  }
+  if (patch.is_worn !== undefined) {
+    fields.push("is_worn = ?");
+    binds.push(patch.is_worn ? 1 : 0);
+  }
+  if (patch.is_consumable !== undefined) {
+    fields.push("is_consumable = ?");
+    binds.push(patch.is_consumable ? 1 : 0);
+  }
+  if (patch.name !== undefined) {
+    const key = matchKey(patch.name);
+    fields.push("name = ?", "match_key = ?");
+    binds.push(patch.name, key);
+    // Renaming re-links the item to whatever closet gear now matches, unless the
+    // caller is also setting closet_item_id explicitly (handled below).
+    if (patch.closet_item_id === undefined) {
+      fields.push("closet_item_id = ?");
+      binds.push(await closetIdForName(db, scoutId, key));
+    }
+  }
   if (patch.closet_item_id !== undefined) {
     fields.push("closet_item_id = ?");
     binds.push(patch.closet_item_id);
   }
-  if (!fields.length) return true;
-  binds.push(itemId);
-  await db
-    .prepare(`UPDATE packing_list_items SET ${fields.join(", ")} WHERE id = ?`)
-    .bind(...binds)
-    .run();
+  if (fields.length) {
+    binds.push(itemId);
+    await db
+      .prepare(`UPDATE packing_list_items SET ${fields.join(", ")} WHERE id = ?`)
+      .bind(...binds)
+      .run();
+  }
+  return loadPackingItem(db, scoutId, itemId);
+}
+
+// Apply a drag ordering (and category membership) to packing-list items. Each
+// entry carries the item's new category + sort_order. Ownership is verified by
+// joining back to the scout's packing lists; only owned ids are written.
+export async function reorderPackingItems(
+  db: D1Database,
+  scoutId: string,
+  order: { id: string; category: string; sort_order: number }[],
+): Promise<boolean> {
+  if (!order.length) return true;
+  const ids = order.map((o) => o.id);
+  const placeholders = ids.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(
+      `SELECT pli.id FROM packing_list_items pli
+        JOIN packing_lists pl ON pl.id = pli.packing_list_id
+       WHERE pl.scout_id = ? AND pli.id IN (${placeholders})`,
+    )
+    .bind(scoutId, ...ids)
+    .all<{ id: string }>();
+  const owned = new Set((results ?? []).map((r) => r.id));
+  const valid = order.filter((o) => owned.has(o.id));
+  if (!valid.length) return false;
+  await db.batch(
+    valid.map((o) =>
+      db
+        .prepare(`UPDATE packing_list_items SET category=?, sort_order=? WHERE id=?`)
+        .bind(o.category, o.sort_order, o.id),
+    ),
+  );
   return true;
 }
 

@@ -10,18 +10,8 @@ import {
 } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
+import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import type { ClosetItem, ImportPreviewItem, Scout } from "../../shared/types.ts";
-
-const BLANK: Partial<ClosetItem> = {
-  name: "",
-  category: "Misc",
-  brand: "",
-  description: "",
-  weight_grams: null,
-  quantity: 1,
-  is_worn: 0,
-  is_consumable: 0,
-};
 
 // Distinct categorical palette for the donut + legend + section swatches, keyed
 // by the category's alphabetical position. This is data-viz: a chart legitimately
@@ -38,10 +28,19 @@ const weightOf = (it: ClosetItem) => (it.weight_grams ?? 0) * it.quantity;
 // Per-item weights are edited/displayed in grams; subtotals/totals use kg or lb.
 const fmtBig = (grams: number, unit: Unit) =>
   unit === "imperial" ? `${(grams / 453.592).toFixed(2)} lb` : `${(grams / 1000).toFixed(2)} kg`;
+// Gear quantities are small — clamp to 1–99 so the column stays two digits wide
+// and totals can't balloon out of their column.
+const clampQty = (v: string | number) => Math.min(99, Math.max(1, Math.floor(Number(v)) || 1));
 
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
-  const [draft, setDraft] = useState<Partial<ClosetItem>>(BLANK);
+  const suggestions = useTemplateSuggestions();
+  // Categories created via "Add new category" that have no items yet — they
+  // wouldn't appear in the item-derived list until something lands in them.
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  const [newCat, setNewCat] = useState("");
+  // Id of a just-created item whose name field should auto-focus for filling in.
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [unit, setUnit] = useState<Unit>(() =>
     typeof localStorage !== "undefined" && localStorage.getItem("closet-unit") === "imperial"
@@ -104,19 +103,28 @@ export function Closet({ scout }: { scout: Scout }) {
       .catch((e: Error) => setErr(e.message));
   }
 
-  async function add() {
-    if (!draft.name?.trim() || !draft.category?.trim()) return;
+  // Create a blank, fillable item in the given category and focus its name.
+  async function addItemTo(category: string) {
     try {
       const created = await api.createClosetItem(scout.id, {
-        ...draft,
-        name: draft.name.trim(),
-        category: draft.category.trim(),
+        name: "New item",
+        category,
+        quantity: 1,
       });
       setItems((items) => [...(items ?? []), created]);
-      setDraft(BLANK);
+      setFocusId(created.id);
     } catch (e) {
       setErr((e as Error).message);
     }
+  }
+
+  function addCategory() {
+    const c = newCat.trim();
+    if (!c) return;
+    if (!categories.includes(c) && !extraCategories.includes(c)) {
+      setExtraCategories((x) => [...x, c]);
+    }
+    setNewCat("");
   }
 
   async function remove(id: string) {
@@ -201,6 +209,10 @@ export function Closet({ scout }: { scout: Scout }) {
     arr.push(it);
     byCategory.set(it.category, arr);
   }
+  // Item-derived categories plus any still-empty ones added by the user.
+  const renderCats = [...new Set([...categories, ...extraCategories])].sort((a, b) =>
+    a.localeCompare(b),
+  );
 
   return (
     <div className="sp-page sp-closet">
@@ -214,7 +226,7 @@ export function Closet({ scout }: { scout: Scout }) {
 
       {items.length > 0 && <PackSummary items={items} colorFor={colorFor} unit={unit} />}
 
-      {categories.map((cat) => {
+      {renderCats.map((cat) => {
         const list = byCategory.get(cat) ?? [];
         const subtotal = list.reduce((acc, it) => acc + weightOf(it), 0);
         const count = list.reduce((acc, it) => acc + it.quantity, 0);
@@ -235,7 +247,7 @@ export function Closet({ scout }: { scout: Scout }) {
                 <tr>
                   <th className="sp-gear__grip"></th>
                   <th className="sp-gear__name">Item</th>
-                  <th>Description</th>
+                  <th className="sp-gear__desc">Description</th>
                   <th></th>
                   <th className="is-right">Weight</th>
                   <th className="is-right">Qty</th>
@@ -248,6 +260,8 @@ export function Closet({ scout }: { scout: Scout }) {
                     key={it.id}
                     item={it}
                     scoutId={scout.id}
+                    suggestions={suggestions}
+                    autoFocusName={focusId === it.id}
                     dragOver={dragOverId === it.id}
                     linkEditing={linkEditId === it.id}
                     onDragStart={() => setDragId(it.id)}
@@ -284,61 +298,27 @@ export function Closet({ scout }: { scout: Scout }) {
               </tfoot>
             </table>
             </div>
+            <div className="sp-addmore">
+              <Button size="sm" variant="ghost" onClick={() => addItemTo(cat)}>
+                + Add new item
+              </Button>
+            </div>
           </section>
         );
       })}
-      {!items.length && <EmptyState>No items yet. Add gear you own below.</EmptyState>}
+
+      <div className="sp-addcat">
+        <input
+          className="sp-cell"
+          placeholder="New category name"
+          value={newCat}
+          onChange={(e) => setNewCat(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+        />
+        <Button onClick={addCategory} disabled={!newCat.trim()}>+ Add new category</Button>
+      </div>
 
       <div className="sp-tools">
-        <section>
-          <SectionLabel>Add gear</SectionLabel>
-          <div className="sp-addrow">
-            <Field label="Name">
-              <input value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            </Field>
-            <Field label="Category">
-              <input value={draft.category ?? ""} onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
-            </Field>
-            <Field label="Brand">
-              <input value={draft.brand ?? ""} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} />
-            </Field>
-            <Field label="Weight" hint="g">
-              <input
-                type="number"
-                value={draft.weight_grams ?? ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, weight_grams: e.target.value ? Number(e.target.value) : null })
-                }
-              />
-            </Field>
-            <Field label="Qty">
-              <input
-                type="number"
-                min={1}
-                value={draft.quantity ?? 1}
-                onChange={(e) => setDraft({ ...draft, quantity: Number(e.target.value) })}
-              />
-            </Field>
-            <label className="sp-check">
-              <input
-                type="checkbox"
-                checked={!!draft.is_worn}
-                onChange={(e) => setDraft({ ...draft, is_worn: e.target.checked ? 1 : 0 })}
-              />
-              worn
-            </label>
-            <label className="sp-check">
-              <input
-                type="checkbox"
-                checked={!!draft.is_consumable}
-                onChange={(e) => setDraft({ ...draft, is_consumable: e.target.checked ? 1 : 0 })}
-              />
-              consumable
-            </label>
-            <Button variant="primary" onClick={add}>Add</Button>
-          </div>
-        </section>
-
         <ImportSection
           scout={scout}
           onImported={(created) => setItems((items) => [...(items ?? []), ...created])}
@@ -351,6 +331,8 @@ export function Closet({ scout }: { scout: Scout }) {
 function GearRow({
   item,
   scoutId,
+  suggestions,
+  autoFocusName,
   dragOver,
   linkEditing,
   onDragStart,
@@ -368,6 +350,8 @@ function GearRow({
 }: {
   item: ClosetItem;
   scoutId: string;
+  suggestions: NameSuggestion[];
+  autoFocusName: boolean;
   dragOver: boolean;
   linkEditing: boolean;
   onDragStart: () => void;
@@ -406,14 +390,15 @@ function GearRow({
           </span>
         </td>
         <td>
-          <input
-            className="sp-cell"
+          <NameInput
             value={item.name}
-            onChange={(e) => onEditLocal({ name: e.target.value })}
-            onBlur={(e) => onPatch({ name: e.target.value.trim() || item.name })}
+            suggestions={suggestions}
+            autoFocus={autoFocusName}
+            onChange={(v) => onEditLocal({ name: v })}
+            onCommit={(v) => onPatch({ name: v.trim() || item.name })}
           />
         </td>
-        <td>
+        <td className="sp-gear__desc">
           <input
             className="sp-cell sp-cell--soft"
             placeholder="description"
@@ -484,9 +469,10 @@ function GearRow({
             className="sp-cell t10-num sp-gear__qty"
             type="number"
             min={1}
+            max={99}
             value={item.quantity}
-            onChange={(e) => onEditLocal({ quantity: Number(e.target.value) || 1 })}
-            onBlur={(e) => onPatch({ quantity: Number(e.target.value) || 1 })}
+            onChange={(e) => onEditLocal({ quantity: clampQty(e.target.value) })}
+            onBlur={(e) => onPatch({ quantity: clampQty(e.target.value) })}
           />
         </td>
         <td className="sp-gear__del">
@@ -513,55 +499,6 @@ function GearRow({
       )}
     </>
   );
-}
-
-function Icon({ name, filled }: { name: string; filled?: boolean }) {
-  const p = {
-    width: 16,
-    height: 16,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  switch (name) {
-    case "camera":
-      return (
-        <svg {...p}>
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-      );
-    case "link":
-      return (
-        <svg {...p}>
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-        </svg>
-      );
-    case "shirt":
-      return (
-        <svg {...p}>
-          <path d="M4 7l4-4 4 3 4-3 4 4-3 3-1-1v12H8V9L7 10z" />
-        </svg>
-      );
-    case "utensils":
-      return (
-        <svg {...p}>
-          <path d="M6 3v8M9 3v8M7.5 11v10M16 3c-1.6 0-2.5 2-2.5 5s1 4 2.5 4v9" />
-        </svg>
-      );
-    case "star":
-      return (
-        <svg {...p} fill={filled ? "currentColor" : "none"}>
-          <polygon points="12 2 15 9 22 9.3 17 14 18.2 21 12 17.5 5.8 21 7 14 2 9.3 9 9" />
-        </svg>
-      );
-    default:
-      return null;
-  }
 }
 
 function PackSummary({
