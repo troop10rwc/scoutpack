@@ -488,6 +488,14 @@ function PackRow({
           onChange={(v) => onEditLocal({ name: v })}
           onCommit={(v) => onPatch({ name: v.trim() || item.name })}
         />
+        {item.closet_item && item.closet_item.match_key !== item.match_key && (
+          <div
+            className="sp-packlink"
+            title={`Filled by “${item.closet_item.name}” from your closet`}
+          >
+            <Icon name="closet" /> {item.closet_item.name}
+          </div>
+        )}
       </td>
       <td className="sp-gear__desc">
         <input
@@ -514,9 +522,17 @@ function PackRow({
           <Icon name="utensils" />
         </button>
         {item.owned ? (
-          <span className="sp-iconbtn is-on" title="In your closet">
+          <button
+            className="sp-iconbtn is-on"
+            onClick={() => onPatch({ closet_item_id: null })}
+            title={
+              item.closet_item
+                ? `Filled by “${item.closet_item.name}” — click to unlink`
+                : "In your closet — click to unlink"
+            }
+          >
             <Icon name="closet" />
-          </span>
+          </button>
         ) : (
           <button
             className="sp-iconbtn sp-iconbtn--add"

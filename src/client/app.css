@@ -230,3 +230,11 @@
 .sp-gearchip__w { margin-left: auto; flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
 /* While dragging closet gear, missing rows light up as valid drop targets. */
 .sp-gear tr.is-geartarget td { background: var(--t10-pine-tint); box-shadow: inset 0 0 0 1px var(--t10-pine); }
+/* Caption under a packing item's name showing which closet item fills it, when
+   the linked gear's name differs from the template requirement. */
+.sp-packlink {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 6px 3px; font-size: var(--t10-fs-xs); color: var(--t10-pine);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sp-packlink svg { width: 12px; height: 12px; flex: 0 0 auto; }
