@@ -244,3 +244,7 @@
   font-size: var(--t10-fs-xs); color: var(--t10-ink-faint);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Same-name link: closet glyph leading the still-editable name input. */
+.sp-packlinked { display: flex; align-items: center; gap: 5px; }
+.sp-packlinked > svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--t10-pine); }
+.sp-packlinked .sp-nameac { flex: 1 1 auto; min-width: 0; }

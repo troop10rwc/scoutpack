@@ -467,10 +467,18 @@ function PackRow({
   const weight = item.closet_item?.weight_grams ?? null;
   // When a row is filled by closet gear whose name differs from the template
   // requirement, the gear name leads (it's what you're actually packing) and the
-  // requirement it satisfies drops to a caption. Case-only auto-links (same
-  // match_key) keep the plain editable name.
+  // requirement it satisfies drops to a caption.
   const linkedGear =
     item.closet_item && item.closet_item.match_key !== item.match_key ? item.closet_item : null;
+  const nameInput = (
+    <NameInput
+      value={item.name}
+      suggestions={suggestions}
+      autoFocus={autoFocusName}
+      onChange={(v) => onEditLocal({ name: v })}
+      onCommit={(v) => onPatch({ name: v.trim() || item.name })}
+    />
+  );
   return (
     <tr
       className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}${gearTarget ? " is-geartarget" : ""}`}
@@ -516,14 +524,19 @@ function PackRow({
               for {item.name}
             </span>
           </div>
+        ) : item.closet_item ? (
+          // Same-name link (auto-matched or dropped onto an identical name): keep
+          // the editable name but flag it with the closet glyph so it's clear a
+          // closet item is backing this row.
+          <div
+            className="sp-packlinked"
+            title={`Filled by “${item.closet_item.name}” from your closet`}
+          >
+            <Icon name="closet" />
+            {nameInput}
+          </div>
         ) : (
-          <NameInput
-            value={item.name}
-            suggestions={suggestions}
-            autoFocus={autoFocusName}
-            onChange={(v) => onEditLocal({ name: v })}
-            onCommit={(v) => onPatch({ name: v.trim() || item.name })}
-          />
+          nameInput
         )}
       </td>
       <td className="sp-gear__desc">
