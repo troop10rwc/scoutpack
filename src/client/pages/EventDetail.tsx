@@ -4,7 +4,7 @@ import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
-import type { PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
+import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
 
 type BundleOrEmpty =
   | PackingListBundle
@@ -30,6 +30,10 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   // Drag-reorder state (mirrors the closet ledger).
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // The scout's closet, shown as a drag-and-drop palette in the sidebar.
+  const [closet, setCloset] = useState<ClosetItem[] | null>(null);
+  // Id of the closet item currently being dragged from the gear sidebar.
+  const [gearDragId, setGearDragId] = useState<string | null>(null);
 
   const ev = bundle?.event ?? null;
   usePageChrome(
@@ -47,6 +51,12 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
       .catch((e: Error) => setErr(e.message));
   }
   useEffect(load, [scout.id, eventId]);
+  // The closet palette is per-scout (independent of the event), so load it once
+  // per scout and reuse across events.
+  useEffect(() => {
+    setCloset(null);
+    api.listCloset(scout.id).then(setCloset).catch(() => setCloset([]));
+  }, [scout.id]);
   // Drop transient add-category state when switching events.
   useEffect(() => {
     setExtraCategories([]);
@@ -176,6 +186,16 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     }
   }
 
+  // Link a "missing" packing item to an existing closet item dragged in from the
+  // gear sidebar. The server resolves ownership + weight; patch reflects it. The
+  // linked gear then drops out of the palette (it's filtered by closet_item_id).
+  function linkGear(packingItemId: string) {
+    const closetItemId = gearDragId;
+    setGearDragId(null);
+    if (!closetItemId) return;
+    patch(packingItemId, { closet_item_id: closetItemId });
+  }
+
   if (err) return <EmptyState>{err}</EmptyState>;
   if (!bundle) return <EmptyState>Loading…</EmptyState>;
 
@@ -210,7 +230,14 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     a.localeCompare(b),
   );
 
+  // Closet gear not yet linked to a row on this list — the palette of items you
+  // can drag onto the "missing" rows. Shrinks as you assign gear.
+  const linkedIds = new Set(items.map((i) => i.closet_item_id).filter((x): x is string => !!x));
+  const availableGear = (closet ?? []).filter((c) => !linkedIds.has(c.id));
+  const hasMissing = owned < total;
+
   return (
+    <div className="sp-eventlayout">
     <div className="sp-page sp-closet">
       <div className="sp-stats">
         <span><span className="t10-num">{owned}/{total}</span> owned</span>
@@ -253,6 +280,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       suggestions={suggestions}
                       autoFocusName={focusId === it.id}
                       dragOver={dragOverId === it.id}
+                      gearTarget={!it.owned && gearDragId !== null}
+                      onGearDrop={() => linkGear(it.id)}
                       onDragStart={() => setDragId(it.id)}
                       onDragEnd={() => {
                         setDragId(null);
@@ -303,6 +332,81 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
         </Button>
       </div>
     </div>
+
+      <GearSidebar
+        loading={closet === null}
+        gear={availableGear}
+        hasMissing={hasMissing}
+        onDragStart={setGearDragId}
+        onDragEnd={() => setGearDragId(null)}
+      />
+    </div>
+  );
+}
+
+// The closet-as-palette sidebar shown next to a packing list: every closet item
+// not yet linked to this list, draggable onto a "missing" row to claim it.
+function GearSidebar({
+  loading,
+  gear,
+  hasMissing,
+  onDragStart,
+  onDragEnd,
+}: {
+  loading: boolean;
+  gear: ClosetItem[];
+  hasMissing: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+}) {
+  const byCategory = new Map<string, ClosetItem[]>();
+  for (const it of gear) {
+    const arr = byCategory.get(it.category) ?? [];
+    arr.push(it);
+    byCategory.set(it.category, arr);
+  }
+  const cats = [...byCategory.keys()].sort((a, b) => a.localeCompare(b));
+
+  return (
+    <aside className="sp-gearbar" aria-label="Closet gear">
+      <h2 className="sp-gearbar__head">Closet</h2>
+      <p className="t10-sub sp-gearbar__hint">
+        {hasMissing
+          ? "Drag gear onto a missing item to claim it."
+          : "Every item on this list is claimed."}
+      </p>
+      {loading ? (
+        <p className="t10-sub">Loading…</p>
+      ) : gear.length === 0 ? (
+        <p className="t10-sub">No unassigned closet gear.</p>
+      ) : (
+        cats.map((cat) => (
+          <div key={cat} className="sp-gearbar__cat">
+            <h3 className="sp-gearbar__catname">{cat}</h3>
+            <ul className="sp-gearchips">
+              {(byCategory.get(cat) ?? []).map((it) => (
+                <li
+                  key={it.id}
+                  className="sp-gearchip"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "link";
+                    onDragStart(it.id);
+                  }}
+                  onDragEnd={onDragEnd}
+                  title={it.weight_grams != null ? `${it.weight_grams} g` : undefined}
+                >
+                  <span className="sp-gearchip__name">{it.name}</span>
+                  {it.weight_grams != null && (
+                    <span className="sp-gearchip__w t10-num">{it.weight_grams}g</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+    </aside>
   );
 }
 
@@ -311,6 +415,8 @@ function PackRow({
   suggestions,
   autoFocusName,
   dragOver,
+  gearTarget,
+  onGearDrop,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -325,6 +431,9 @@ function PackRow({
   suggestions: NameSuggestion[];
   autoFocusName: boolean;
   dragOver: boolean;
+  // True while closet gear is being dragged and this row is a valid (missing) target.
+  gearTarget: boolean;
+  onGearDrop: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   onDragEnter: () => void;
@@ -338,10 +447,17 @@ function PackRow({
   const weight = item.closet_item?.weight_grams ?? null;
   return (
     <tr
-      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}`}
+      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}${gearTarget ? " is-geartarget" : ""}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
-      onDrop={onDropRow}
+      onDrop={
+        gearTarget
+          ? (e) => {
+              e.stopPropagation();
+              onGearDrop();
+            }
+          : onDropRow
+      }
     >
       <td className="sp-gear__grip">
         <span

@@ -187,3 +187,46 @@
 .sp-import__row .t10-field { flex: 1; max-width: 30rem; }
 .sp-import__review { margin-top: var(--t10-s3); }
 .sp-import__done { display: flex; align-items: center; gap: var(--t10-s3); margin-top: var(--t10-s3); }
+
+/* ---- Sidebar pin: a remembered event under "Upcoming" ------------------- */
+.sp-navpin { display: inline-flex; align-items: center; gap: var(--t10-s2); width: 100%; }
+.sp-navpin__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-navpin__x {
+  margin-left: auto; flex: 0 0 auto; width: 1.1em; height: 1.1em; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--t10-r-sm); color: var(--t10-ink-faint); cursor: pointer; opacity: .6;
+}
+.sp-navpin__x:hover { opacity: 1; color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+
+/* ---- Event detail: packing list + closet-palette sidebar ---------------- */
+.sp-eventlayout { display: flex; align-items: flex-start; }
+.sp-eventlayout > .sp-page { flex: 1 1 auto; min-width: 0; }
+.sp-gearbar {
+  flex: 0 0 15rem; align-self: stretch; position: sticky; top: 0;
+  max-height: 100vh; overflow-y: auto;
+  padding: var(--t10-s5) var(--t10-s5) var(--t10-s5) var(--t10-s4);
+  border-left: 1px solid var(--t10-line);
+  display: flex; flex-direction: column; gap: var(--t10-s2);
+}
+.sp-gearbar__head {
+  font-family: var(--t10-font-display); font-weight: 800; font-size: var(--t10-fs-md);
+  margin: 0;
+}
+.sp-gearbar__hint { margin: 0 0 var(--t10-s2); font-size: var(--t10-fs-xs); }
+.sp-gearbar__cat { display: flex; flex-direction: column; gap: var(--t10-s1); margin-top: var(--t10-s2); }
+.sp-gearbar__catname {
+  font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint); margin: 0;
+}
+.sp-gearchips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s1); }
+.sp-gearchip {
+  display: flex; align-items: center; gap: var(--t10-s2);
+  padding: 4px 8px; border: 1px solid var(--t10-line); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface); cursor: grab; font-size: var(--t10-fs-sm);
+}
+.sp-gearchip:active { cursor: grabbing; }
+.sp-gearchip:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
+.sp-gearchip__name { color: var(--t10-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-gearchip__w { margin-left: auto; flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
+/* While dragging closet gear, missing rows light up as valid drop targets. */
+.sp-gear tr.is-geartarget td { background: var(--t10-pine-tint); box-shadow: inset 0 0 0 1px var(--t10-pine); }

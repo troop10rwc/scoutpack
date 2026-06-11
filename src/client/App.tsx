@@ -17,6 +17,25 @@ import { Templates } from "./pages/Templates.tsx";
 import { Roster } from "./pages/Roster.tsx";
 
 const ACTIVE_SCOUT_KEY = "scoutpack.activeScoutId";
+const SELECTED_EVENTS_KEY = "scoutpack.selectedEvents";
+
+interface SelectedEvent {
+  id: string;
+  name: string;
+}
+
+// Every event you open is remembered (deduped by id) so it stays a one-click
+// shortcut under "Upcoming". Persisted as an array; a malformed/legacy value
+// (the old single-object key) just yields an empty list.
+function loadSelectedEvents(): SelectedEvent[] {
+  try {
+    const raw = localStorage.getItem(SELECTED_EVENTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as SelectedEvent[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 // scoutpack ships as the "gearlist" entry in the kit's BACK_OFFICE_APPS
 // registry (mounted at /manage/gearlist). The cross-app product switcher
@@ -31,7 +50,8 @@ const ACCESS_LOGOUT_URL = "/cdn-cgi/access/logout";
 
 // AppShell groups nav by hard-coded ids: "lists" + "closet" under Operations,
 // "roster" under Roster. Upcoming events and a single packing list both live
-// under "lists"; the closet under "closet".
+// under "lists"; the closet under "closet". Each remembered event is injected
+// as a child of "lists" at render time (see `nav` below).
 const NAV: NavItem[] = [
   { id: "lists", label: "Upcoming", icon: "◧" },
   { id: "closet", label: "Closet", icon: "⛺" },
@@ -39,6 +59,8 @@ const NAV: NavItem[] = [
   { id: "roster", label: "Roster", icon: "◉", leaderOnly: true },
 ];
 
+// Sidebar id for the active highlight. A selected event is a child of "lists"
+// (Upcoming) and gets its own id so it — not its parent — highlights on /event.
 const ROUTE_TO_NAV: Record<Route["kind"], string> = {
   dashboard: "lists",
   event: "lists",
@@ -53,6 +75,9 @@ const NAV_TO_PATH: Record<string, string> = {
   templates: "/templates",
   roster: "/roster",
 };
+
+const eventNavId = (id: string) => `event:${id}`;
+const eventHref = (id: string) => `#/event/${encodeURIComponent(id)}`;
 
 const DEFAULT_TITLE: Record<Route["kind"], string> = {
   dashboard: "Upcoming",
@@ -69,6 +94,7 @@ export function App() {
     () => localStorage.getItem(ACTIVE_SCOUT_KEY),
   );
   const [chrome, setChrome] = useState<Chrome | null>(null);
+  const [selectedEvents, setSelectedEvents] = useState<SelectedEvent[]>(loadSelectedEvents);
   const route = useRoute();
 
   useEffect(() => {
@@ -86,9 +112,37 @@ export function App() {
   // republishes its own chrome in an effect right after.
   useEffect(() => setChrome(null), [route.kind, route.kind === "event" ? route.eventId : ""]);
 
+  // Remember every event you open so each stays a navigable shortcut under
+  // "Upcoming" even after you move to another section. The event page publishes
+  // its name as the chrome title; pin it once that real name lands (ignore the
+  // generic placeholder shown while the packing list loads).
+  const eventTitle =
+    route.kind === "event" && typeof chrome?.title === "string" ? chrome.title : null;
+  useEffect(() => {
+    if (route.kind !== "event" || !eventTitle || eventTitle === DEFAULT_TITLE.event) return;
+    setSelectedEvents((prev) => {
+      const existing = prev.find((e) => e.id === route.eventId);
+      if (existing && existing.name === eventTitle) return prev;
+      const next = existing
+        ? prev.map((e) => (e.id === route.eventId ? { ...e, name: eventTitle } : e))
+        : [...prev, { id: route.eventId, name: eventTitle }];
+      localStorage.setItem(SELECTED_EVENTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [route.kind, route.kind === "event" ? route.eventId : "", eventTitle]);
+
   function setActiveScoutId(id: string) {
     localStorage.setItem(ACTIVE_SCOUT_KEY, id);
     setActiveScoutIdState(id);
+  }
+
+  // Unpin a remembered event from the "Upcoming" sub-menu.
+  function unpinEvent(id: string) {
+    setSelectedEvents((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      localStorage.setItem(SELECTED_EVENTS_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   async function addScout() {
@@ -120,6 +174,42 @@ export function App() {
   const scoutRoute =
     route.kind === "dashboard" || route.kind === "closet" || route.kind === "event";
 
+  // Hang each remembered event off "Upcoming" as a nested, directly-navigable
+  // child (a hash link), so it stays a one-click shortcut from anywhere. The
+  // label carries an unpin "×" that swallows the click so it doesn't navigate.
+  const nav: NavItem[] = NAV.map((item) =>
+    item.id === "lists" && selectedEvents.length
+      ? {
+          ...item,
+          children: selectedEvents.map((ev) => ({
+            id: eventNavId(ev.id),
+            href: eventHref(ev.id),
+            label: (
+              <span className="sp-navpin">
+                <span className="sp-navpin__name">{ev.name}</span>
+                <span
+                  className="sp-navpin__x"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Unpin ${ev.name}`}
+                  title="Unpin"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    unpinEvent(ev.id);
+                  }}
+                >
+                  ×
+                </span>
+              </span>
+            ),
+          })),
+        }
+      : item,
+  );
+  const active =
+    route.kind === "event" ? eventNavId(route.eventId) : ROUTE_TO_NAV[route.kind];
+
   const switcher = scoutRoute && activeScout ? (
     <ScoutSwitcher
       scouts={me.scouts}
@@ -131,9 +221,14 @@ export function App() {
 
   return (
     <AppShell
-      active={ROUTE_TO_NAV[route.kind]}
-      nav={NAV}
-      onNavigate={(id) => navigate(NAV_TO_PATH[id] ?? "/")}
+      active={active}
+      nav={nav}
+      // Event children own their hash href; the static items route by id. Skip
+      // event ids here so a pin click navigates once (via its href), not twice.
+      onNavigate={(id) => {
+        if (id.startsWith("event:")) return;
+        navigate(NAV_TO_PATH[id] ?? "/");
+      }}
       isLeader={isLeader}
       appSwitcher={
         <BackOfficeTopNav active={APP_ID} user={user} logoutUrl={ACCESS_LOGOUT_URL} />
