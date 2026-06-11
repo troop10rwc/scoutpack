@@ -163,29 +163,6 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     }
   }
 
-  // Create a closet item from a "missing" packing item. The server auto-links
-  // matching pending packing items on create, so reflect ownership locally.
-  async function addToCloset(item: PackingItemView) {
-    try {
-      const created = await api.createClosetItem(scout.id, {
-        name: item.name,
-        category: item.category,
-        quantity: item.quantity,
-        is_worn: item.is_worn,
-        is_consumable: item.is_consumable,
-      });
-      setItems((items) =>
-        items.map((it) =>
-          it.id === item.id
-            ? { ...it, closet_item_id: created.id, owned: true, closet_item: created }
-            : it,
-        ),
-      );
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
-
   // Link a "missing" packing item to an existing closet item dragged in from the
   // gear sidebar. The server resolves ownership + weight; patch reflects it. The
   // linked gear then drops out of the palette (it's filtered by closet_item_id).
@@ -295,7 +272,6 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       onTogglePacked={(p) => patch(it.id, { packed: p })}
                       onEditLocal={(f) => editLocal(it.id, f)}
                       onPatch={(f) => patch(it.id, f)}
-                      onAddToCloset={() => addToCloset(it)}
                       onRemove={() => remove(it.id)}
                     />
                   ))}
@@ -414,8 +390,11 @@ function GearSidebar({
                     onDragStart(it.id);
                   }}
                   onDragEnd={onDragEnd}
-                  title={it.weight_grams != null ? `${it.weight_grams} g` : undefined}
+                  title={`Drag “${it.name}” onto a missing item${
+                    it.weight_grams != null ? ` · ${it.weight_grams} g` : ""
+                  }`}
                 >
+                  <span className="sp-gearchip__grip" aria-hidden="true">⠿</span>
                   <span className="sp-gearchip__name">{it.name}</span>
                   {it.weight_grams != null && (
                     <span className="sp-gearchip__w t10-num">{it.weight_grams}g</span>
@@ -427,6 +406,22 @@ function GearSidebar({
         ))
       )}
     </aside>
+  );
+}
+
+// A small link badge marking a packing row as filled by closet gear. It both
+// signals the link and, on click, detaches it (the gear returns to the palette).
+function UnlinkButton({ name, onUnlink }: { name: string; onUnlink: () => void }) {
+  return (
+    <button
+      type="button"
+      className="sp-linkbadge"
+      onClick={onUnlink}
+      title={`Linked to “${name}” — click to unlink`}
+      aria-label={`Linked to ${name}. Click to unlink.`}
+    >
+      <Icon name="link" />
+    </button>
   );
 }
 
@@ -444,7 +439,6 @@ function PackRow({
   onTogglePacked,
   onEditLocal,
   onPatch,
-  onAddToCloset,
   onRemove,
 }: {
   item: PackingItemView;
@@ -461,7 +455,6 @@ function PackRow({
   onTogglePacked: (packed: boolean) => void;
   onEditLocal: (f: Partial<PackingItemView>) => void;
   onPatch: (f: Parameters<typeof api.updatePackingListItem>[2]) => void;
-  onAddToCloset: () => void;
   onRemove: () => void;
 }) {
   const weight = item.closet_item?.weight_grams ?? null;
@@ -510,7 +503,7 @@ function PackRow({
           checked={!!item.packed}
           disabled={!item.owned}
           aria-label={`Packed: ${item.name}`}
-          title={item.owned ? "Packed" : "Add to your closet to pack"}
+          title={item.owned ? "Packed" : "Drag gear from the closet to pack this"}
           onChange={(e) => onTogglePacked(e.target.checked)}
         />
       </td>
@@ -518,7 +511,8 @@ function PackRow({
         {linkedGear ? (
           <div className="sp-packname">
             <span className="sp-packname__main">
-              <Icon name="closet" /> {linkedGear.name}
+              <UnlinkButton name={linkedGear.name} onUnlink={() => onPatch({ closet_item_id: null })} />
+              {linkedGear.name}
             </span>
             <span className="sp-packname__req" title={`Packed for the “${item.name}” item`}>
               for {item.name}
@@ -526,13 +520,9 @@ function PackRow({
           </div>
         ) : item.closet_item ? (
           // Same-name link (auto-matched or dropped onto an identical name): keep
-          // the editable name but flag it with the closet glyph so it's clear a
-          // closet item is backing this row.
-          <div
-            className="sp-packlinked"
-            title={`Filled by “${item.closet_item.name}” from your closet`}
-          >
-            <Icon name="closet" />
+          // the editable name, flagged with a link badge that also unlinks.
+          <div className="sp-packlinked">
+            <UnlinkButton name={item.closet_item.name} onUnlink={() => onPatch({ closet_item_id: null })} />
             {nameInput}
           </div>
         ) : (
@@ -563,27 +553,6 @@ function PackRow({
         >
           <Icon name="utensils" />
         </button>
-        {item.owned ? (
-          <button
-            className="sp-iconbtn is-on"
-            onClick={() => onPatch({ closet_item_id: null })}
-            title={
-              item.closet_item
-                ? `Filled by “${item.closet_item.name}” — click to unlink`
-                : "In your closet — click to unlink"
-            }
-          >
-            <Icon name="closet" />
-          </button>
-        ) : (
-          <button
-            className="sp-iconbtn sp-iconbtn--add"
-            onClick={onAddToCloset}
-            title="Not in your closet — click to add it"
-          >
-            <Icon name="closet" />
-          </button>
-        )}
       </td>
       <td className="is-right sp-gear__weight">
         {weight != null ? (

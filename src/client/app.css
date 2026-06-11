@@ -130,9 +130,6 @@
 .sp-iconbtn--link { font-size: .85rem; line-height: 1; text-decoration: none; color: var(--t10-pine); }
 .sp-iconbtn--del { font-size: 1.1rem; line-height: 1; color: var(--t10-ink-faint); }
 .sp-iconbtn--del:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
-/* "Not in your closet — click to add" affordance on packing rows. */
-.sp-iconbtn--add { color: var(--t10-clay); }
-.sp-iconbtn--add:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
 
 .sp-thumbwrap { position: relative; display: inline-block; vertical-align: middle; }
 .sp-thumb {
@@ -238,23 +235,32 @@
 }
 .sp-gearchip:active { cursor: grabbing; }
 .sp-gearchip:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
-.sp-gearchip__name { color: var(--t10-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-gearchip__w { margin-left: auto; flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
+.sp-gearchip:hover .sp-gearchip__grip { color: var(--t10-pine); }
+.sp-gearchip__grip { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: .9rem; line-height: 1; }
+.sp-gearchip__name { flex: 1 1 auto; color: var(--t10-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-gearchip__w { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
 /* While dragging closet gear, missing rows light up as valid drop targets. */
 .sp-gear tr.is-geartarget td { background: var(--t10-pine-tint); box-shadow: inset 0 0 0 1px var(--t10-pine); }
 /* A packing row filled by closet gear whose name differs from the template
    requirement: the gear name leads, the requirement it satisfies is the caption. */
 .sp-packname { display: flex; flex-direction: column; gap: 1px; padding: 2px 6px; }
 .sp-packname__main {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 4px;
   font-size: var(--t10-fs-sm); color: var(--t10-ink);
 }
-.sp-packname__main svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--t10-pine); }
 .sp-packname__req {
   font-size: var(--t10-fs-xs); color: var(--t10-ink-faint);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* Same-name link: closet glyph leading the still-editable name input. */
-.sp-packlinked { display: flex; align-items: center; gap: 5px; }
-.sp-packlinked > svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--t10-pine); }
+/* Same-name link: link badge leading the still-editable name input. */
+.sp-packlinked { display: flex; align-items: center; gap: 4px; }
 .sp-packlinked .sp-nameac { flex: 1 1 auto; min-width: 0; }
+/* A linked row is marked with a small link badge; clicking it unlinks (the hover
+   shifts to the clay "remove" tone to signal that). */
+.sp-linkbadge {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  padding: 2px; border: none; background: transparent; line-height: 0;
+  color: var(--t10-pine); cursor: pointer; border-radius: var(--t10-r-sm);
+}
+.sp-linkbadge svg { width: 13px; height: 13px; }
+.sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }
