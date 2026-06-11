@@ -69,6 +69,9 @@
    (not nth-child) so the column survives layout differences — e.g. the packing
    table prepends a drag-grip column the closet's header order doesn't have. */
 .sp-gear__desc { width: 100%; }
+/* Read-only description text (sourced from the linked closet item). */
+.sp-desc { display: block; padding: 4px 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-desc--empty { color: var(--t10-ink-faint); }
 /* Name holds an editable input with no intrinsic width. A min-width on its
    wrapper sets the column's floor so the greedy Description column can't starve
    it below a usable size (a plain `width` would lose to the 100% column). */

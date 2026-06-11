@@ -530,13 +530,12 @@ function PackRow({
         )}
       </td>
       <td className="sp-gear__desc">
-        <input
-          className="sp-cell sp-cell--soft"
-          placeholder="description"
-          value={item.description ?? ""}
-          onChange={(e) => onEditLocal({ description: e.target.value })}
-          onBlur={(e) => onPatch({ description: e.target.value || null })}
-        />
+        {/* Read-only: the description follows the linked closet item, not the row. */}
+        {item.closet_item?.description ? (
+          <span className="sp-desc">{item.closet_item.description}</span>
+        ) : (
+          <span className="sp-desc sp-desc--empty">—</span>
+        )}
       </td>
       <td className="sp-gear__acts">
         <button
