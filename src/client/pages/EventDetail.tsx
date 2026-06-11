@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, EmptyState, StatusPill } from "@troop10rwc/ui";
+import { Button, EmptyState, SearchInput, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
@@ -359,8 +359,16 @@ function GearSidebar({
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? gear.filter(
+        (g) => g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q),
+      )
+    : gear;
+
   const byCategory = new Map<string, ClosetItem[]>();
-  for (const it of gear) {
+  for (const it of filtered) {
     const arr = byCategory.get(it.category) ?? [];
     arr.push(it);
     byCategory.set(it.category, arr);
@@ -370,6 +378,16 @@ function GearSidebar({
   return (
     <aside className="sp-gearbar" aria-label="Closet gear">
       <h2 className="sp-gearbar__head">Closet</h2>
+      {!loading && gear.length > 0 && (
+        <div className="sp-gearbar__search">
+          <SearchInput
+            placeholder="Search gear…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search closet gear"
+          />
+        </div>
+      )}
       <p className="t10-sub sp-gearbar__hint">
         {hasMissing
           ? "Drag gear onto a missing item to claim it."
@@ -379,6 +397,8 @@ function GearSidebar({
         <p className="t10-sub">Loading…</p>
       ) : gear.length === 0 ? (
         <p className="t10-sub">No unassigned closet gear.</p>
+      ) : filtered.length === 0 ? (
+        <p className="t10-sub">No gear matches “{query.trim()}”.</p>
       ) : (
         cats.map((cat) => (
           <div key={cat} className="sp-gearbar__cat">

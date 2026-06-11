@@ -213,6 +213,8 @@
   margin: 0;
 }
 .sp-gearbar__hint { margin: 0 0 var(--t10-s2); font-size: var(--t10-fs-xs); }
+.sp-gearbar__search { width: 100%; }
+.sp-gearbar__search input, .sp-gearbar__search .t10-search { width: 100%; box-sizing: border-box; }
 .sp-gearbar__cat { display: flex; flex-direction: column; gap: var(--t10-s1); margin-top: var(--t10-s2); }
 .sp-gearbar__catname {
   font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
