@@ -207,10 +207,9 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     a.localeCompare(b),
   );
 
-  // Closet gear not yet linked to a row on this list — the palette of items you
-  // can drag onto the "missing" rows. Shrinks as you assign gear.
+  // The whole closet is the palette; items already linked to a row on this list
+  // are shown as used (a link badge, not draggable) rather than hidden.
   const linkedIds = new Set(items.map((i) => i.closet_item_id).filter((x): x is string => !!x));
-  const availableGear = (closet ?? []).filter((c) => !linkedIds.has(c.id));
   const hasMissing = owned < total;
 
   return (
@@ -311,7 +310,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
 
       <GearSidebar
         loading={closet === null}
-        gear={availableGear}
+        gear={closet ?? []}
+        linkedIds={linkedIds}
         hasMissing={hasMissing}
         onDragStart={setGearDragId}
         onDragEnd={() => setGearDragId(null)}
@@ -320,17 +320,20 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   );
 }
 
-// The closet-as-palette sidebar shown next to a packing list: every closet item
-// not yet linked to this list, draggable onto a "missing" row to claim it.
+// The closet-as-palette sidebar shown next to a packing list: the whole closet,
+// draggable onto a "missing" row to claim it. Items already used on this list are
+// shown with a link badge instead of a drag handle (and aren't draggable).
 function GearSidebar({
   loading,
   gear,
+  linkedIds,
   hasMissing,
   onDragStart,
   onDragEnd,
 }: {
   loading: boolean;
   gear: ClosetItem[];
+  linkedIds: Set<string>;
   hasMissing: boolean;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
@@ -372,7 +375,7 @@ function GearSidebar({
       {loading ? (
         <p className="t10-sub">Loading…</p>
       ) : gear.length === 0 ? (
-        <p className="t10-sub">No unassigned closet gear.</p>
+        <p className="t10-sub">Your closet is empty.</p>
       ) : filtered.length === 0 ? (
         <p className="t10-sub">No gear matches “{query.trim()}”.</p>
       ) : (
@@ -380,27 +383,44 @@ function GearSidebar({
           <div key={cat} className="sp-gearbar__cat">
             <h3 className="sp-gearbar__catname">{cat}</h3>
             <ul className="sp-gearchips">
-              {(byCategory.get(cat) ?? []).map((it) => (
-                <li
-                  key={it.id}
-                  className="sp-gearchip"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "link";
-                    onDragStart(it.id);
-                  }}
-                  onDragEnd={onDragEnd}
-                  title={`Drag “${it.name}” onto a missing item${
-                    it.weight_grams != null ? ` · ${it.weight_grams} g` : ""
-                  }`}
-                >
-                  <span className="sp-gearchip__grip" aria-hidden="true">⠿</span>
-                  <span className="sp-gearchip__name">{it.name}</span>
-                  {it.weight_grams != null && (
-                    <span className="sp-gearchip__w t10-num">{it.weight_grams}g</span>
-                  )}
-                </li>
-              ))}
+              {(byCategory.get(cat) ?? []).map((it) => {
+                const used = linkedIds.has(it.id);
+                return (
+                  <li
+                    key={it.id}
+                    className={`sp-gearchip${used ? " is-used" : ""}`}
+                    draggable={!used}
+                    onDragStart={
+                      used
+                        ? undefined
+                        : (e) => {
+                            e.dataTransfer.effectAllowed = "link";
+                            onDragStart(it.id);
+                          }
+                    }
+                    onDragEnd={used ? undefined : onDragEnd}
+                    title={
+                      used
+                        ? `“${it.name}” is already on this packing list`
+                        : `Drag “${it.name}” onto a missing item${
+                            it.weight_grams != null ? ` · ${it.weight_grams} g` : ""
+                          }`
+                    }
+                  >
+                    {used ? (
+                      <span className="sp-gearchip__used" title="Used on this list">
+                        <Icon name="link" />
+                      </span>
+                    ) : (
+                      <span className="sp-gearchip__grip" aria-hidden="true">⠿</span>
+                    )}
+                    <span className="sp-gearchip__name">{it.name}</span>
+                    {it.weight_grams != null && (
+                      <span className="sp-gearchip__w t10-num">{it.weight_grams}g</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))

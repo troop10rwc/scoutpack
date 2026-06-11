@@ -242,6 +242,13 @@
 .sp-gearchip__grip { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: .9rem; line-height: 1; }
 .sp-gearchip__name { flex: 1 1 auto; color: var(--t10-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-gearchip__w { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
+/* A gear item already used on this list: a link badge replaces the drag grip, the
+   chip is muted, and it's not draggable. */
+.sp-gearchip.is-used { cursor: default; background: var(--t10-surface-2); color: var(--t10-ink-faint); }
+.sp-gearchip.is-used:hover { border-color: var(--t10-line); background: var(--t10-surface-2); }
+.sp-gearchip.is-used .sp-gearchip__name { color: var(--t10-ink-soft); }
+.sp-gearchip__used { flex: 0 0 auto; display: inline-flex; align-items: center; line-height: 0; color: var(--t10-pine); }
+.sp-gearchip__used svg { width: 13px; height: 13px; }
 /* While dragging closet gear, missing rows light up as valid drop targets. The
    pine outline is drawn only on the row's perimeter — top/bottom on every cell,
    plus the left edge on the first cell and the right edge on the last — so it
