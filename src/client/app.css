@@ -69,6 +69,9 @@
    (not nth-child) so the column survives layout differences — e.g. the packing
    table prepends a drag-grip column the closet's header order doesn't have. */
 .sp-gear__desc { width: 100%; }
+/* Read-only description text (sourced from the linked closet item). */
+.sp-desc { display: block; padding: 4px 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-desc--empty { color: var(--t10-ink-faint); }
 /* Name holds an editable input with no intrinsic width. A min-width on its
    wrapper sets the column's floor so the greedy Description column can't starve
    it below a usable size (a plain `width` would lose to the 100% column). */
@@ -130,9 +133,6 @@
 .sp-iconbtn--link { font-size: .85rem; line-height: 1; text-decoration: none; color: var(--t10-pine); }
 .sp-iconbtn--del { font-size: 1.1rem; line-height: 1; color: var(--t10-ink-faint); }
 .sp-iconbtn--del:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
-/* "Not in your closet — click to add" affordance on packing rows. */
-.sp-iconbtn--add { color: var(--t10-clay); }
-.sp-iconbtn--add:hover { color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
 
 .sp-thumbwrap { position: relative; display: inline-block; vertical-align: middle; }
 .sp-thumb {
@@ -187,3 +187,102 @@
 .sp-import__row .t10-field { flex: 1; max-width: 30rem; }
 .sp-import__review { margin-top: var(--t10-s3); }
 .sp-import__done { display: flex; align-items: center; gap: var(--t10-s3); margin-top: var(--t10-s3); }
+
+/* ---- Sidebar pin: a remembered event under "Upcoming" ------------------- */
+.sp-navpin { display: inline-flex; align-items: center; gap: var(--t10-s2); width: 100%; }
+.sp-navpin__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-navpin__x {
+  margin-left: auto; flex: 0 0 auto; width: 1.1em; height: 1.1em; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--t10-r-sm); color: var(--t10-ink-faint); cursor: pointer; opacity: .6;
+}
+.sp-navpin__x:hover { opacity: 1; color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+
+/* ---- Event detail: packing list + closet-palette sidebar ---------------- */
+/* The kit's shell card clips its rounded corners with `overflow: hidden`, which
+   makes it the (non-scrolling) sticky container and stops the closet palette
+   from sticking as the body scrolls. `overflow: clip` clips identically (still
+   honors border-radius) without establishing a scrollport, so sticky descendants
+   resolve to the document scroll instead. */
+.t10-shell { overflow: clip; }
+.sp-eventlayout { display: flex; align-items: flex-start; }
+.sp-eventlayout > .sp-page { flex: 1 1 auto; min-width: 0; }
+/* The closet palette pins below the sticky product-switcher bar (.appnav, ~59px)
+   as the page scrolls. align-self:flex-start keeps it at its natural height —
+   align-self:stretch would size it to the full list and leave sticky no room to
+   move. A tall palette scrolls within itself. */
+.sp-gearbar {
+  flex: 0 0 15rem; align-self: flex-start; position: sticky; top: 64px;
+  max-height: calc(100vh - 76px); overflow-y: auto;
+  padding: var(--t10-s5) var(--t10-s5) var(--t10-s5) var(--t10-s4);
+  border-left: 1px solid var(--t10-line);
+  display: flex; flex-direction: column; gap: var(--t10-s2);
+}
+.sp-gearbar__head {
+  font-family: var(--t10-font-display); font-weight: 800; font-size: var(--t10-fs-md);
+  margin: 0;
+}
+.sp-gearbar__hint { margin: 0 0 var(--t10-s2); font-size: var(--t10-fs-xs); }
+.sp-gearbar__search { width: 100%; }
+.sp-gearbar__search input, .sp-gearbar__search .t10-search { width: 100%; box-sizing: border-box; }
+.sp-gearbar__cat { display: flex; flex-direction: column; gap: var(--t10-s1); margin-top: var(--t10-s2); }
+.sp-gearbar__catname {
+  font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint); margin: 0;
+}
+.sp-gearchips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s1); }
+.sp-gearchip {
+  display: flex; align-items: center; gap: var(--t10-s2);
+  padding: 4px 8px; border: 1px solid var(--t10-line); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface); cursor: grab; font-size: var(--t10-fs-sm);
+}
+.sp-gearchip:active { cursor: grabbing; }
+.sp-gearchip:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
+.sp-gearchip:hover .sp-gearchip__grip { color: var(--t10-pine); }
+.sp-gearchip__grip { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: .9rem; line-height: 1; }
+.sp-gearchip__name { flex: 1 1 auto; color: var(--t10-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-gearchip__w { flex: 0 0 auto; color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); }
+/* A gear item already used on this list: a link badge replaces the drag grip, the
+   chip is muted, and it's not draggable. */
+.sp-gearchip.is-used { cursor: default; background: var(--t10-surface-2); color: var(--t10-ink-faint); }
+.sp-gearchip.is-used:hover { border-color: var(--t10-line); background: var(--t10-surface-2); }
+.sp-gearchip.is-used .sp-gearchip__name { color: var(--t10-ink-soft); }
+.sp-gearchip__used { flex: 0 0 auto; display: inline-flex; align-items: center; line-height: 0; color: var(--t10-pine); }
+.sp-gearchip__used svg { width: 13px; height: 13px; }
+/* While dragging closet gear, missing rows light up as valid drop targets. The
+   pine outline is drawn only on the row's perimeter — top/bottom on every cell,
+   plus the left edge on the first cell and the right edge on the last — so it
+   reads as one row, not a box around each cell. */
+.sp-gear tr.is-geartarget td {
+  background: var(--t10-pine-tint);
+  box-shadow: inset 0 1px 0 0 var(--t10-pine), inset 0 -1px 0 0 var(--t10-pine);
+}
+.sp-gear tr.is-geartarget td:first-child {
+  box-shadow: inset 0 1px 0 0 var(--t10-pine), inset 0 -1px 0 0 var(--t10-pine), inset 1px 0 0 0 var(--t10-pine);
+}
+.sp-gear tr.is-geartarget td:last-child {
+  box-shadow: inset 0 1px 0 0 var(--t10-pine), inset 0 -1px 0 0 var(--t10-pine), inset -1px 0 0 0 var(--t10-pine);
+}
+/* A packing row filled by closet gear whose name differs from the template
+   requirement: the gear name leads, the requirement it satisfies is the caption. */
+.sp-packname { display: flex; flex-direction: column; gap: 1px; padding: 2px 6px; }
+.sp-packname__main {
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--t10-fs-sm); color: var(--t10-ink);
+}
+.sp-packname__req {
+  font-size: var(--t10-fs-xs); color: var(--t10-ink-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Same-name link: link badge leading the still-editable name input. */
+.sp-packlinked { display: flex; align-items: center; gap: 4px; }
+.sp-packlinked .sp-nameac { flex: 1 1 auto; min-width: 0; }
+/* A linked row is marked with a small link badge; clicking it unlinks (the hover
+   shifts to the clay "remove" tone to signal that). */
+.sp-linkbadge {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  padding: 2px; border: none; background: transparent; line-height: 0;
+  color: var(--t10-pine); cursor: pointer; border-radius: var(--t10-r-sm);
+}
+.sp-linkbadge svg { width: 13px; height: 13px; }
+.sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }

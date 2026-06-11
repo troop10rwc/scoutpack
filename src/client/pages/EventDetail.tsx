@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Button, EmptyState, StatusPill } from "@troop10rwc/ui";
+import { Button, EmptyState, SearchInput, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
-import type { PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
+import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
 
 type BundleOrEmpty =
   | PackingListBundle
@@ -30,6 +30,10 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   // Drag-reorder state (mirrors the closet ledger).
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // The scout's closet, shown as a drag-and-drop palette in the sidebar.
+  const [closet, setCloset] = useState<ClosetItem[] | null>(null);
+  // Id of the closet item currently being dragged from the gear sidebar.
+  const [gearDragId, setGearDragId] = useState<string | null>(null);
 
   const ev = bundle?.event ?? null;
   usePageChrome(
@@ -47,6 +51,12 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
       .catch((e: Error) => setErr(e.message));
   }
   useEffect(load, [scout.id, eventId]);
+  // The closet palette is per-scout (independent of the event), so load it once
+  // per scout and reuse across events.
+  useEffect(() => {
+    setCloset(null);
+    api.listCloset(scout.id).then(setCloset).catch(() => setCloset([]));
+  }, [scout.id]);
   // Drop transient add-category state when switching events.
   useEffect(() => {
     setExtraCategories([]);
@@ -153,27 +163,14 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     }
   }
 
-  // Create a closet item from a "missing" packing item. The server auto-links
-  // matching pending packing items on create, so reflect ownership locally.
-  async function addToCloset(item: PackingItemView) {
-    try {
-      const created = await api.createClosetItem(scout.id, {
-        name: item.name,
-        category: item.category,
-        quantity: item.quantity,
-        is_worn: item.is_worn,
-        is_consumable: item.is_consumable,
-      });
-      setItems((items) =>
-        items.map((it) =>
-          it.id === item.id
-            ? { ...it, closet_item_id: created.id, owned: true, closet_item: created }
-            : it,
-        ),
-      );
-    } catch (e) {
-      setErr((e as Error).message);
-    }
+  // Link a "missing" packing item to an existing closet item dragged in from the
+  // gear sidebar. The server resolves ownership + weight; patch reflects it. The
+  // linked gear then drops out of the palette (it's filtered by closet_item_id).
+  function linkGear(packingItemId: string) {
+    const closetItemId = gearDragId;
+    setGearDragId(null);
+    if (!closetItemId) return;
+    patch(packingItemId, { closet_item_id: closetItemId });
   }
 
   if (err) return <EmptyState>{err}</EmptyState>;
@@ -210,7 +207,13 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     a.localeCompare(b),
   );
 
+  // The whole closet is the palette; items already linked to a row on this list
+  // are shown as used (a link badge, not draggable) rather than hidden.
+  const linkedIds = new Set(items.map((i) => i.closet_item_id).filter((x): x is string => !!x));
+  const hasMissing = owned < total;
+
   return (
+    <div className="sp-eventlayout">
     <div className="sp-page sp-closet">
       <div className="sp-stats">
         <span><span className="t10-num">{owned}/{total}</span> owned</span>
@@ -253,6 +256,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       suggestions={suggestions}
                       autoFocusName={focusId === it.id}
                       dragOver={dragOverId === it.id}
+                      gearTarget={!it.owned && gearDragId !== null}
+                      onGearDrop={() => linkGear(it.id)}
                       onDragStart={() => setDragId(it.id)}
                       onDragEnd={() => {
                         setDragId(null);
@@ -266,7 +271,6 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       onTogglePacked={(p) => patch(it.id, { packed: p })}
                       onEditLocal={(f) => editLocal(it.id, f)}
                       onPatch={(f) => patch(it.id, f)}
-                      onAddToCloset={() => addToCloset(it)}
                       onRemove={() => remove(it.id)}
                     />
                   ))}
@@ -303,6 +307,141 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
         </Button>
       </div>
     </div>
+
+      <GearSidebar
+        loading={closet === null}
+        gear={closet ?? []}
+        linkedIds={linkedIds}
+        hasMissing={hasMissing}
+        onDragStart={setGearDragId}
+        onDragEnd={() => setGearDragId(null)}
+      />
+    </div>
+  );
+}
+
+// The closet-as-palette sidebar shown next to a packing list: the whole closet,
+// draggable onto a "missing" row to claim it. Items already used on this list are
+// shown with a link badge instead of a drag handle (and aren't draggable).
+function GearSidebar({
+  loading,
+  gear,
+  linkedIds,
+  hasMissing,
+  onDragStart,
+  onDragEnd,
+}: {
+  loading: boolean;
+  gear: ClosetItem[];
+  linkedIds: Set<string>;
+  hasMissing: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? gear.filter(
+        (g) => g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q),
+      )
+    : gear;
+
+  const byCategory = new Map<string, ClosetItem[]>();
+  for (const it of filtered) {
+    const arr = byCategory.get(it.category) ?? [];
+    arr.push(it);
+    byCategory.set(it.category, arr);
+  }
+  const cats = [...byCategory.keys()].sort((a, b) => a.localeCompare(b));
+
+  return (
+    <aside className="sp-gearbar" aria-label="Closet gear">
+      <h2 className="sp-gearbar__head">Closet</h2>
+      {!loading && gear.length > 0 && (
+        <div className="sp-gearbar__search">
+          <SearchInput
+            placeholder="Search gear…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search closet gear"
+          />
+        </div>
+      )}
+      <p className="t10-sub sp-gearbar__hint">
+        {hasMissing
+          ? "Drag gear onto a missing item to claim it."
+          : "Every item on this list is claimed."}
+      </p>
+      {loading ? (
+        <p className="t10-sub">Loading…</p>
+      ) : gear.length === 0 ? (
+        <p className="t10-sub">Your closet is empty.</p>
+      ) : filtered.length === 0 ? (
+        <p className="t10-sub">No gear matches “{query.trim()}”.</p>
+      ) : (
+        cats.map((cat) => (
+          <div key={cat} className="sp-gearbar__cat">
+            <h3 className="sp-gearbar__catname">{cat}</h3>
+            <ul className="sp-gearchips">
+              {(byCategory.get(cat) ?? []).map((it) => {
+                const used = linkedIds.has(it.id);
+                return (
+                  <li
+                    key={it.id}
+                    className={`sp-gearchip${used ? " is-used" : ""}`}
+                    draggable={!used}
+                    onDragStart={
+                      used
+                        ? undefined
+                        : (e) => {
+                            e.dataTransfer.effectAllowed = "link";
+                            onDragStart(it.id);
+                          }
+                    }
+                    onDragEnd={used ? undefined : onDragEnd}
+                    title={
+                      used
+                        ? `“${it.name}” is already on this packing list`
+                        : `Drag “${it.name}” onto a missing item${
+                            it.weight_grams != null ? ` · ${it.weight_grams} g` : ""
+                          }`
+                    }
+                  >
+                    {used ? (
+                      <span className="sp-gearchip__used" title="Used on this list">
+                        <Icon name="link" />
+                      </span>
+                    ) : (
+                      <span className="sp-gearchip__grip" aria-hidden="true">⠿</span>
+                    )}
+                    <span className="sp-gearchip__name">{it.name}</span>
+                    {it.weight_grams != null && (
+                      <span className="sp-gearchip__w t10-num">{it.weight_grams}g</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
+      )}
+    </aside>
+  );
+}
+
+// A small link badge marking a packing row as filled by closet gear. It both
+// signals the link and, on click, detaches it (the gear returns to the palette).
+function UnlinkButton({ name, onUnlink }: { name: string; onUnlink: () => void }) {
+  return (
+    <button
+      type="button"
+      className="sp-linkbadge"
+      onClick={onUnlink}
+      title={`Linked to “${name}” — click to unlink`}
+      aria-label={`Linked to ${name}. Click to unlink.`}
+    >
+      <Icon name="link" />
+    </button>
   );
 }
 
@@ -311,6 +450,8 @@ function PackRow({
   suggestions,
   autoFocusName,
   dragOver,
+  gearTarget,
+  onGearDrop,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -318,13 +459,15 @@ function PackRow({
   onTogglePacked,
   onEditLocal,
   onPatch,
-  onAddToCloset,
   onRemove,
 }: {
   item: PackingItemView;
   suggestions: NameSuggestion[];
   autoFocusName: boolean;
   dragOver: boolean;
+  // True while closet gear is being dragged and this row is a valid (missing) target.
+  gearTarget: boolean;
+  onGearDrop: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   onDragEnter: () => void;
@@ -332,16 +475,36 @@ function PackRow({
   onTogglePacked: (packed: boolean) => void;
   onEditLocal: (f: Partial<PackingItemView>) => void;
   onPatch: (f: Parameters<typeof api.updatePackingListItem>[2]) => void;
-  onAddToCloset: () => void;
   onRemove: () => void;
 }) {
   const weight = item.closet_item?.weight_grams ?? null;
+  // When a row is filled by closet gear whose name differs from the template
+  // requirement, the gear name leads (it's what you're actually packing) and the
+  // requirement it satisfies drops to a caption.
+  const linkedGear =
+    item.closet_item && item.closet_item.match_key !== item.match_key ? item.closet_item : null;
+  const nameInput = (
+    <NameInput
+      value={item.name}
+      suggestions={suggestions}
+      autoFocus={autoFocusName}
+      onChange={(v) => onEditLocal({ name: v })}
+      onCommit={(v) => onPatch({ name: v.trim() || item.name })}
+    />
+  );
   return (
     <tr
-      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}`}
+      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}${gearTarget ? " is-geartarget" : ""}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
-      onDrop={onDropRow}
+      onDrop={
+        gearTarget
+          ? (e) => {
+              e.stopPropagation();
+              onGearDrop();
+            }
+          : onDropRow
+      }
     >
       <td className="sp-gear__grip">
         <span
@@ -360,27 +523,39 @@ function PackRow({
           checked={!!item.packed}
           disabled={!item.owned}
           aria-label={`Packed: ${item.name}`}
-          title={item.owned ? "Packed" : "Add to your closet to pack"}
+          title={item.owned ? "Packed" : "Drag gear from the closet to pack this"}
           onChange={(e) => onTogglePacked(e.target.checked)}
         />
       </td>
       <td>
-        <NameInput
-          value={item.name}
-          suggestions={suggestions}
-          autoFocus={autoFocusName}
-          onChange={(v) => onEditLocal({ name: v })}
-          onCommit={(v) => onPatch({ name: v.trim() || item.name })}
-        />
+        {linkedGear ? (
+          <div className="sp-packname">
+            <span className="sp-packname__main">
+              <UnlinkButton name={linkedGear.name} onUnlink={() => onPatch({ closet_item_id: null })} />
+              {linkedGear.name}
+            </span>
+            <span className="sp-packname__req" title={`Packed for the “${item.name}” item`}>
+              for {item.name}
+            </span>
+          </div>
+        ) : item.closet_item ? (
+          // Same-name link (auto-matched or dropped onto an identical name): keep
+          // the editable name, flagged with a link badge that also unlinks.
+          <div className="sp-packlinked">
+            <UnlinkButton name={item.closet_item.name} onUnlink={() => onPatch({ closet_item_id: null })} />
+            {nameInput}
+          </div>
+        ) : (
+          nameInput
+        )}
       </td>
       <td className="sp-gear__desc">
-        <input
-          className="sp-cell sp-cell--soft"
-          placeholder="description"
-          value={item.description ?? ""}
-          onChange={(e) => onEditLocal({ description: e.target.value })}
-          onBlur={(e) => onPatch({ description: e.target.value || null })}
-        />
+        {/* Read-only: the description follows the linked closet item, not the row. */}
+        {item.closet_item?.description ? (
+          <span className="sp-desc">{item.closet_item.description}</span>
+        ) : (
+          <span className="sp-desc sp-desc--empty">—</span>
+        )}
       </td>
       <td className="sp-gear__acts">
         <button
@@ -397,19 +572,6 @@ function PackRow({
         >
           <Icon name="utensils" />
         </button>
-        {item.owned ? (
-          <span className="sp-iconbtn is-on" title="In your closet">
-            <Icon name="closet" />
-          </span>
-        ) : (
-          <button
-            className="sp-iconbtn sp-iconbtn--add"
-            onClick={onAddToCloset}
-            title="Not in your closet — click to add it"
-          >
-            <Icon name="closet" />
-          </button>
-        )}
       </td>
       <td className="is-right sp-gear__weight">
         {weight != null ? (
