@@ -1,5 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AppShell, Button, EmptyState, type NavItem } from "@troop10rwc/ui";
+import {
+  AppShell,
+  BackOfficeTopNav,
+  Button,
+  EmptyState,
+  type NavItem,
+} from "@troop10rwc/ui";
 import { api } from "./api.ts";
 import { navigate, useRoute, type Route } from "./router.ts";
 import { ChromeProvider, type Chrome } from "./chrome.tsx";
@@ -11,6 +17,17 @@ import { Templates } from "./pages/Templates.tsx";
 import { Roster } from "./pages/Roster.tsx";
 
 const ACTIVE_SCOUT_KEY = "scoutpack.activeScoutId";
+
+// scoutpack ships as the "gearlist" entry in the kit's BACK_OFFICE_APPS
+// registry (mounted at /manage/gearlist). The cross-app product switcher
+// (BackOfficeTopNav) highlights this id and pulls the rest of the app list
+// from the kit, so the bar stays identical across the whole back office.
+const APP_ID = "gearlist";
+
+// The whole troop10rwc.org domain (and the *.workers.dev previews) sits behind
+// Cloudflare Access; this host-relative path logs the user out at the edge on
+// any of those hosts. See src/worker/auth.ts.
+const ACCESS_LOGOUT_URL = "/cdn-cgi/access/logout";
 
 // AppShell groups nav by hard-coded ids: "lists" + "closet" under Operations,
 // "roster" under Roster. Upcoming events and a single packing list both live
@@ -98,6 +115,7 @@ export function App() {
   }
 
   const isLeader = me.role === "leader";
+  const user = { name: me.name || me.email, role: isLeader ? "Leader" : "Scout" };
   const activeScout = me.scouts.find((s) => s.id === activeScoutId) ?? me.scouts[0];
   const scoutRoute =
     route.kind === "dashboard" || route.kind === "closet" || route.kind === "event";
@@ -117,7 +135,9 @@ export function App() {
       nav={NAV}
       onNavigate={(id) => navigate(NAV_TO_PATH[id] ?? "/")}
       isLeader={isLeader}
-      user={{ name: me.name || me.email, role: isLeader ? "Leader" : "Scout" }}
+      appSwitcher={
+        <BackOfficeTopNav active={APP_ID} user={user} logoutUrl={ACCESS_LOGOUT_URL} />
+      }
       title={chrome?.title ?? DEFAULT_TITLE[route.kind]}
       subtitle={chrome?.subtitle}
       actions={(switcher || chrome?.actions) && (
