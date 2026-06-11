@@ -199,11 +199,21 @@
 .sp-navpin__x:hover { opacity: 1; color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
 
 /* ---- Event detail: packing list + closet-palette sidebar ---------------- */
+/* The kit's shell card clips its rounded corners with `overflow: hidden`, which
+   makes it the (non-scrolling) sticky container and stops the closet palette
+   from sticking as the body scrolls. `overflow: clip` clips identically (still
+   honors border-radius) without establishing a scrollport, so sticky descendants
+   resolve to the document scroll instead. */
+.t10-shell { overflow: clip; }
 .sp-eventlayout { display: flex; align-items: flex-start; }
 .sp-eventlayout > .sp-page { flex: 1 1 auto; min-width: 0; }
+/* The closet palette pins below the sticky product-switcher bar (.appnav, ~59px)
+   as the page scrolls. align-self:flex-start keeps it at its natural height —
+   align-self:stretch would size it to the full list and leave sticky no room to
+   move. A tall palette scrolls within itself. */
 .sp-gearbar {
-  flex: 0 0 15rem; align-self: stretch; position: sticky; top: 0;
-  max-height: 100vh; overflow-y: auto;
+  flex: 0 0 15rem; align-self: flex-start; position: sticky; top: 64px;
+  max-height: calc(100vh - 76px); overflow-y: auto;
   padding: var(--t10-s5) var(--t10-s5) var(--t10-s5) var(--t10-s4);
   border-left: 1px solid var(--t10-line);
   display: flex; flex-direction: column; gap: var(--t10-s2);
