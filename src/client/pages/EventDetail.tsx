@@ -3,6 +3,7 @@ import { Button, EmptyState, SearchInput, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
+import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
 
@@ -34,6 +35,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   const [closet, setCloset] = useState<ClosetItem[] | null>(null);
   // Id of the closet item currently being dragged from the gear sidebar.
   const [gearDragId, setGearDragId] = useState<string | null>(null);
+  // Recommended-gear ids the scout has wishlisted this session (to flip the button).
+  const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
 
   const ev = bundle?.event ?? null;
   usePageChrome(
@@ -173,6 +176,21 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     patch(packingItemId, { closet_item_id: closetItemId });
   }
 
+  // Add a missing item's suggested product to the active scout's wishlist.
+  async function addToWishlist(gearId: string) {
+    setWishlisted((prev) => new Set(prev).add(gearId)); // optimistic
+    try {
+      await api.addToWishlist(scout.id, { gear_id: gearId });
+    } catch (e) {
+      setWishlisted((prev) => {
+        const next = new Set(prev);
+        next.delete(gearId);
+        return next;
+      });
+      setErr((e as Error).message);
+    }
+  }
+
   if (err) return <EmptyState>{err}</EmptyState>;
   if (!bundle) return <EmptyState>Loading…</EmptyState>;
 
@@ -258,6 +276,12 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       dragOver={dragOverId === it.id}
                       gearTarget={!it.owned && gearDragId !== null}
                       onGearDrop={() => linkGear(it.id)}
+                      wishlisted={
+                        it.recommendation ? wishlisted.has(it.recommendation.gear.id) : false
+                      }
+                      onWishlist={() =>
+                        it.recommendation && addToWishlist(it.recommendation.gear.id)
+                      }
                       onDragStart={() => setDragId(it.id)}
                       onDragEnd={() => {
                         setDragId(null);
@@ -452,6 +476,8 @@ function PackRow({
   dragOver,
   gearTarget,
   onGearDrop,
+  wishlisted,
+  onWishlist,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -468,6 +494,9 @@ function PackRow({
   // True while closet gear is being dragged and this row is a valid (missing) target.
   gearTarget: boolean;
   onGearDrop: () => void;
+  // The item's suggested product is already on this scout's wishlist.
+  wishlisted: boolean;
+  onWishlist: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   onDragEnter: () => void;
@@ -547,6 +576,25 @@ function PackRow({
           </div>
         ) : (
           nameInput
+        )}
+        {/* On a missing row, surface the leader-suggested product + a wishlist add. */}
+        {!item.owned && item.recommendation && (
+          <div className="sp-suggest">
+            <span className="sp-suggest__label">Recommended:</span>
+            <span className="sp-suggest__name">{item.recommendation.gear.name}</span>
+            {priceFrom(item.recommendation) != null && (
+              <span className="sp-suggest__price t10-num">
+                from {fmtPrice(priceFrom(item.recommendation))}
+              </span>
+            )}
+            {wishlisted ? (
+              <span className="sp-suggest__done">✓ On wishlist</span>
+            ) : (
+              <button className="sp-suggest__add" onClick={onWishlist} title="Add to wishlist">
+                + Wishlist
+              </button>
+            )}
+          </div>
         )}
       </td>
       <td className="sp-gear__desc">

@@ -3,22 +3,28 @@ import { useEffect, useState } from "react";
 // Hash-based router. Routes:
 //   #/                  dashboard
 //   #/closet            closet for active scout
+//   #/wishlist          wishlist for active scout
 //   #/event/:eventId    packing list for an event
 //   #/templates         leader-only template editor
+//   #/recommended       leader-only recommended-gear catalog editor
 //   #/roster            leader-only roster / role editor
 
 export type Route =
   | { kind: "dashboard" }
   | { kind: "closet" }
+  | { kind: "wishlist" }
   | { kind: "event"; eventId: string }
   | { kind: "templates" }
+  | { kind: "recommended" }
   | { kind: "roster" };
 
 function parse(hash: string): Route {
   const path = hash.replace(/^#/, "") || "/";
   if (path === "/" || path === "") return { kind: "dashboard" };
   if (path === "/closet") return { kind: "closet" };
+  if (path === "/wishlist") return { kind: "wishlist" };
   if (path === "/templates") return { kind: "templates" };
+  if (path === "/recommended") return { kind: "recommended" };
   if (path === "/roster") return { kind: "roster" };
   const m = /^\/event\/([^/]+)/.exec(path);
   if (m) return { kind: "event", eventId: decodeURIComponent(m[1]) };

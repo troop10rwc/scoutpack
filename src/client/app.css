@@ -286,3 +286,67 @@
 }
 .sp-linkbadge svg { width: 13px; height: 13px; }
 .sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }
+
+/* ---------- recommended gear: suggestion line on a missing packing row ---------- */
+.sp-suggest {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin: 2px 6px 0; font-size: var(--t10-fs-xs); color: var(--t10-ink-soft);
+}
+.sp-suggest__label { color: var(--t10-ink-faint); }
+.sp-suggest__name { color: var(--t10-ink); font-weight: 500; }
+.sp-suggest__price { color: var(--t10-pine); }
+.sp-suggest__add {
+  border: 1px solid var(--t10-line); background: var(--t10-surface);
+  color: var(--t10-pine); font: inherit; font-size: var(--t10-fs-xs);
+  padding: 1px 7px; border-radius: var(--t10-r-sm); cursor: pointer;
+}
+.sp-suggest__add:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
+.sp-suggest__done { color: var(--t10-pine); font-size: var(--t10-fs-xs); }
+
+/* ---------- recommended gear: leader catalog editor ---------- */
+.sp-rec__archived { opacity: .8; }
+.sp-rec__archlist { margin: 0; padding-left: var(--t10-s5); color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
+.sp-rec__form { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-rec__row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--t10-s4); }
+.sp-rec__opts { display: flex; flex-direction: column; gap: 6px; }
+.sp-rec__opt { display: grid; grid-template-columns: 1.3fr .7fr 1.6fr 1fr auto; gap: 6px; align-items: center; }
+.sp-rec__opt input {
+  border: 1px solid var(--t10-line); background: var(--t10-surface);
+  padding: 5px 7px; border-radius: var(--t10-r-sm); font: inherit;
+  font-size: var(--t10-fs-sm); color: var(--t10-ink); min-width: 0;
+}
+.sp-rec__opt input:focus { border-color: var(--t10-pine); outline: none; box-shadow: var(--t10-ring); }
+.sp-rec__footer { display: flex; align-items: center; gap: var(--t10-s3); width: 100%; }
+.sp-rec__footerspacer { flex: 1 1 auto; }
+
+/* ---------- recommended gear: browse drawer (from the closet) ---------- */
+.sp-recbrowse { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-recbrowse__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sp-recbrowse__item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--t10-s3);
+  padding: 6px 8px; border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface);
+}
+.sp-recbrowse__info { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.sp-recbrowse__name { font-size: var(--t10-fs-sm); color: var(--t10-ink); font-weight: 500; }
+.sp-recbrowse__price { color: var(--t10-pine); font-size: var(--t10-fs-xs); }
+
+/* ---------- wishlist ---------- */
+.sp-wishlist__hint { margin: 0; }
+.sp-wishlist__got { margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-wishcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s3); }
+.sp-wishcard {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--t10-s4);
+  padding: var(--t10-s4); border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r);
+  background: var(--t10-surface);
+}
+.sp-wishcard__main { min-width: 0; flex: 1 1 auto; }
+.sp-wishcard__name { font-size: var(--t10-fs-md); color: var(--t10-ink); font-weight: 500; }
+.sp-wishcard__desc { margin: 2px 0 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-wishcard__opts { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sp-wishcard__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-sm); }
+.sp-wishcard__vendor { color: var(--t10-ink); min-width: 5rem; }
+.sp-wishcard__buy { color: var(--t10-pine); text-decoration: none; font-size: var(--t10-fs-xs); }
+.sp-wishcard__buy:hover { text-decoration: underline; }
+.sp-wishcard__noopts { margin: 6px 0 0; }
+.sp-wishcard__acts { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }

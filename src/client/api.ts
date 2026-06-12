@@ -7,10 +7,12 @@ import type {
   PackingItemView,
   PackingListBundle,
   Position,
+  RecommendedGearBundle,
   RosterMember,
   Scout,
   TemplateBundle,
   UpcomingEvent,
+  WishlistItem,
 } from "../shared/types.ts";
 import type { EventType } from "../shared/constants.ts";
 
@@ -173,4 +175,61 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // Recommended-gear catalog. listRecommended is readable by anyone; the
+  // create/update/archive mutations are leader-only (enforced server-side).
+  listRecommended: (includeArchived = false) =>
+    request<RecommendedGearBundle[]>(
+      `/recommended${includeArchived ? "?include_archived=1" : ""}`,
+    ),
+  createRecommended: (body: RecommendedGearInput) =>
+    request<RecommendedGearBundle>(`/recommended`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateRecommended: (id: string, body: RecommendedGearInput) =>
+    request<RecommendedGearBundle>(`/recommended/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  archiveRecommended: (id: string) =>
+    request<{ ok: boolean }>(`/recommended/${id}/archive`, { method: "POST" }),
+
+  // Per-scout wishlist.
+  listWishlist: (scoutId: string) => request<WishlistItem[]>(`/scouts/${scoutId}/wishlist`),
+  addToWishlist: (scoutId: string, body: WishlistAddInput) =>
+    request<WishlistItem>(`/scouts/${scoutId}/wishlist`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeWishlist: (scoutId: string, itemId: string) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/wishlist/${itemId}`, { method: "DELETE" }),
+  fulfillWishlist: (scoutId: string, itemId: string) =>
+    request<ClosetItem>(`/scouts/${scoutId}/wishlist/${itemId}/fulfill`, { method: "POST" }),
 };
+
+// Catalog-item payload sent by the leader editor (id/match_key are server-owned).
+export interface RecommendedGearInput {
+  name: string;
+  category: string;
+  description?: string | null;
+  brand?: string | null;
+  weight_grams?: number | null;
+  options: Array<{
+    vendor: string;
+    price_cents?: number | null;
+    url?: string | null;
+    note?: string | null;
+  }>;
+}
+
+// Adding to a wishlist: a catalog reference, or a free-form item.
+export interface WishlistAddInput {
+  gear_id?: string | null;
+  name?: string;
+  category?: string;
+  description?: string | null;
+  brand?: string | null;
+  weight_grams?: number | null;
+  note?: string | null;
+}

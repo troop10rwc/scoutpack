@@ -44,6 +44,18 @@ import {
   updatePackingListItem,
   type ClosetItemInput,
 } from "./gear.ts";
+import {
+  addToWishlist,
+  archiveRecommendedGear,
+  createRecommendedGear,
+  fulfillWishlistItem,
+  listRecommendedGear,
+  listWishlist,
+  removeWishlistItem,
+  updateRecommendedGear,
+  type RecommendedGearInput,
+  type WishlistInput,
+} from "./recommend.ts";
 
 interface Bindings extends AuthBindings {
   ASSETS: Fetcher;
@@ -444,6 +456,95 @@ api.post("/templates/:eventType", async (c) => {
     items: body.items as Parameters<typeof publishTemplate>[3]["items"],
   });
   return c.json(bundle, 201);
+});
+
+// ---- recommended gear (leader-curated catalog) ----
+// Readable by any authed user (scouts browse to wishlist). Leaders see archived
+// rows too when ?include_archived=1.
+api.get("/recommended", async (c) => {
+  const includeArchived =
+    c.req.query("include_archived") === "1" && c.get("user").role === "leader";
+  return c.json(await listRecommendedGear(c.env.DB, includeArchived));
+});
+
+api.post("/recommended", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<Partial<RecommendedGearInput>>();
+  if (!body.name?.trim() || !body.category?.trim())
+    return c.json(bad("name and category are required"), 400);
+  const bundle = await createRecommendedGear(
+    c.env.DB,
+    { ...(body as RecommendedGearInput), options: body.options ?? [] },
+    c.get("user").email,
+  );
+  return c.json(bundle, 201);
+});
+
+api.patch("/recommended/:id", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<Partial<RecommendedGearInput>>();
+  if (!body.name?.trim() || !body.category?.trim())
+    return c.json(bad("name and category are required"), 400);
+  const bundle = await updateRecommendedGear(
+    c.env.DB,
+    c.req.param("id"),
+    { ...(body as RecommendedGearInput), options: body.options ?? [] },
+    c.get("user").email,
+  );
+  return bundle ? c.json(bundle) : c.json(bad("not found"), 404);
+});
+
+api.post("/recommended/:id/archive", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const ok = await archiveRecommendedGear(c.env.DB, c.req.param("id"));
+  return ok ? c.json({ ok: true }) : c.json(bad("not found"), 404);
+});
+
+// ---- wishlist (per-scout) ----
+api.get("/scouts/:scoutId/wishlist", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  return c.json(await listWishlist(c.env.DB, scoutId));
+});
+
+api.post("/scouts/:scoutId/wishlist", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<WishlistInput>();
+  if (!body.gear_id && !body.name?.trim())
+    return c.json(bad("gear_id or name is required"), 400);
+  const item = await addToWishlist(c.env.DB, scoutId, body);
+  return item ? c.json(item, 201) : c.json(bad("could not add to wishlist"), 400);
+});
+
+api.delete("/scouts/:scoutId/wishlist/:itemId", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const ok = await removeWishlistItem(c.env.DB, scoutId, c.req.param("itemId"));
+  return ok ? c.json({ ok: true }) : c.json(bad("item not found"), 404);
+});
+
+// "Got it": create the closet item and drop the wishlist row.
+api.post("/scouts/:scoutId/wishlist/:itemId/fulfill", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const closetItem = await fulfillWishlistItem(c.env.DB, scoutId, c.req.param("itemId"));
+  return closetItem ? c.json(closetItem, 201) : c.json(bad("item not found"), 404);
 });
 
 api.notFound((c) => c.json(bad("not found"), 404));

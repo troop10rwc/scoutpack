@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   ChangesetReview,
+  Drawer,
   EmptyState,
   Field,
   SectionLabel,
@@ -11,7 +12,13 @@ import {
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
-import type { ClosetItem, ImportPreviewItem, Scout } from "../../shared/types.ts";
+import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
+import type {
+  ClosetItem,
+  ImportPreviewItem,
+  RecommendedGearBundle,
+  Scout,
+} from "../../shared/types.ts";
 
 // Distinct categorical palette for the donut + legend + section swatches, keyed
 // by the category's alphabetical position. This is data-viz: a chart legitimately
@@ -50,6 +57,10 @@ export function Closet({ scout }: { scout: Scout }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [linkEditId, setLinkEditId] = useState<string | null>(null);
+  // "Browse recommended" drawer: the catalog + which gear ids are wishlisted.
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [catalog, setCatalog] = useState<RecommendedGearBundle[] | null>(null);
+  const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   // Hidden file input shared by every row's camera button.
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<string | null>(null);
@@ -60,10 +71,13 @@ export function Closet({ scout }: { scout: Scout }) {
       title: `${scout.display_name}'s closet`,
       subtitle: `${items?.length ?? 0} items · ${fmtBig(totalGrams, unit)}`,
       actions: (
-        <div className="sp-unit" role="group" aria-label="Weight unit">
-          <Button size="sm" variant={unit === "metric" ? "default" : "ghost"} onClick={() => changeUnit("metric")}>Metric</Button>
-          <Button size="sm" variant={unit === "imperial" ? "default" : "ghost"} onClick={() => changeUnit("imperial")}>Imperial</Button>
-        </div>
+        <>
+          <Button size="sm" onClick={() => setBrowseOpen(true)}>Browse recommended</Button>
+          <div className="sp-unit" role="group" aria-label="Weight unit">
+            <Button size="sm" variant={unit === "metric" ? "default" : "ghost"} onClick={() => changeUnit("metric")}>Metric</Button>
+            <Button size="sm" variant={unit === "imperial" ? "default" : "ghost"} onClick={() => changeUnit("imperial")}>Imperial</Button>
+          </div>
+        </>
       ),
     },
     [scout.display_name, items?.length, totalGrams, unit],
@@ -73,6 +87,29 @@ export function Closet({ scout }: { scout: Scout }) {
     setItems(null);
     api.listCloset(scout.id).then(setItems).catch((e: Error) => setErr(e.message));
   }, [scout.id]);
+
+  // Load the recommended-gear catalog the first time the drawer is opened.
+  useEffect(() => {
+    if (browseOpen && catalog === null) {
+      api.listRecommended().then(setCatalog).catch(() => setCatalog([]));
+    }
+  }, [browseOpen, catalog]);
+  // Reset the per-scout wishlisted tracking when switching scouts.
+  useEffect(() => setWishlistedIds(new Set()), [scout.id]);
+
+  async function wishlistGear(gearId: string) {
+    setWishlistedIds((prev) => new Set(prev).add(gearId)); // optimistic
+    try {
+      await api.addToWishlist(scout.id, { gear_id: gearId });
+    } catch (e) {
+      setWishlistedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(gearId);
+        return next;
+      });
+      setErr((e as Error).message);
+    }
+  }
 
   const categories = useMemo(
     () => [...new Set((items ?? []).map((i) => i.category))].sort((a, b) => a.localeCompare(b)),
@@ -324,7 +361,90 @@ export function Closet({ scout }: { scout: Scout }) {
           onImported={(created) => setItems((items) => [...(items ?? []), ...created])}
         />
       </div>
+
+      <RecommendedDrawer
+        open={browseOpen}
+        onClose={() => setBrowseOpen(false)}
+        catalog={catalog}
+        scoutName={scout.display_name}
+        wishlistedIds={wishlistedIds}
+        onWishlist={wishlistGear}
+      />
     </div>
+  );
+}
+
+// Browse-the-catalog drawer opened from the closet headstrip. Scouts add items to
+// their wishlist (parents buy them) rather than straight into the closet.
+function RecommendedDrawer({
+  open,
+  onClose,
+  catalog,
+  scoutName,
+  wishlistedIds,
+  onWishlist,
+}: {
+  open: boolean;
+  onClose: () => void;
+  catalog: RecommendedGearBundle[] | null;
+  scoutName: string;
+  wishlistedIds: Set<string>;
+  onWishlist: (gearId: string) => void;
+}) {
+  const byCat = new Map<string, RecommendedGearBundle[]>();
+  for (const b of catalog ?? []) {
+    const arr = byCat.get(b.gear.category) ?? [];
+    arr.push(b);
+    byCat.set(b.gear.category, arr);
+  }
+  const cats = [...byCat.keys()].sort((a, b) => a.localeCompare(b));
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="Recommended gear"
+      subtitle={`Add to ${scoutName}’s wishlist`}
+    >
+      {catalog === null ? (
+        <p className="t10-sub">Loading…</p>
+      ) : catalog.length === 0 ? (
+        <p className="t10-sub">No recommended gear yet.</p>
+      ) : (
+        <div className="sp-recbrowse">
+          {cats.map((cat) => (
+            <div key={cat} className="sp-recbrowse__cat">
+              <SectionLabel>{cat}</SectionLabel>
+              <ul className="sp-recbrowse__list">
+                {(byCat.get(cat) ?? []).map((b) => {
+                  const added = wishlistedIds.has(b.gear.id);
+                  return (
+                    <li key={b.gear.id} className="sp-recbrowse__item">
+                      <div className="sp-recbrowse__info">
+                        <span className="sp-recbrowse__name">{b.gear.name}</span>
+                        {b.gear.brand && <span className="t10-sub"> · {b.gear.brand}</span>}
+                        {priceFrom(b) != null && (
+                          <span className="sp-recbrowse__price t10-num">
+                            from {fmtPrice(priceFrom(b))}
+                          </span>
+                        )}
+                      </div>
+                      {added ? (
+                        <StatusPill tone="ok">On wishlist</StatusPill>
+                      ) : (
+                        <Button size="sm" onClick={() => onWishlist(b.gear.id)}>
+                          + Wishlist
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Drawer>
   );
 }
 

@@ -121,6 +121,61 @@ export interface ImportPreviewItem {
   duplicate: boolean;
 }
 
+// ---------- recommended gear (leader-curated catalog) ----------
+
+// One product in the recommended-gear catalog. `is_active` soft-archives a row
+// without breaking template / packing / wishlist references to its id.
+export interface RecommendedGear {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  brand: string | null;
+  weight_grams: number | null;
+  match_key: string;
+  is_active: 0 | 1;
+  sort_order: number;
+  updated_by: string;
+  updated_at: string;
+  created_at: string;
+}
+
+// One "where to buy" option for a recommended item. `price_cents` is null when
+// unknown; UI formats it as dollars.
+export interface RecommendedGearOption {
+  id: string;
+  gear_id: string;
+  vendor: string;
+  price_cents: number | null;
+  url: string | null;
+  note: string | null;
+  sort_order: number;
+}
+
+// A catalog item plus its buy options — the shape the UI works with.
+export interface RecommendedGearBundle {
+  gear: RecommendedGear;
+  options: RecommendedGearOption[];
+}
+
+// One scout's wishlist row: a snapshot of the chosen gear (so it survives the
+// catalog being archived/edited) plus the live `gear_id` reference and the
+// current buy options resolved through it (empty if the catalog row is gone).
+export interface WishlistItem {
+  id: string;
+  scout_id: string;
+  gear_id: string | null;
+  name: string;
+  category: string;
+  description: string | null;
+  brand: string | null;
+  weight_grams: number | null;
+  match_key: string;
+  note: string | null;
+  created_at: string;
+  options: RecommendedGearOption[];
+}
+
 export interface Template {
   id: string;
   event_type: EventType;
@@ -140,6 +195,9 @@ export interface TemplateItem {
   is_worn: 0 | 1;
   is_consumable: 0 | 1;
   match_key: string;
+  // Explicit leader link to a recommended-gear catalog item (the "suggested
+  // product" for this generic line), or null.
+  recommended_gear_id: string | null;
   sort_order: number;
 }
 
@@ -167,15 +225,19 @@ export interface PackingListItem {
   is_consumable: 0 | 1;
   match_key: string;
   closet_item_id: string | null;
+  // Recommended-gear suggestion cloned from the template item, or null.
+  recommended_gear_id: string | null;
   packed: 0 | 1;
   sort_order: number;
 }
 
 // A packing-list item enriched with its resolved closet ownership — the shape
-// the UI works with (and what the add/update endpoints return).
+// the UI works with (and what the add/update endpoints return). For a "missing"
+// row, `recommendation` carries the suggested product + buy options (if linked).
 export type PackingItemView = PackingListItem & {
   owned: boolean;
   closet_item: ClosetItem | null;
+  recommendation: RecommendedGearBundle | null;
 };
 
 export interface PackingListBundle {
