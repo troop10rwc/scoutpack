@@ -33,6 +33,64 @@ function setPriceFrom(s: RecommendationSetBundle): number | null {
   return all.length ? Math.min(...all) : null;
 }
 
+// ---------- export CSV ----------
+// The export carries set_id/product_id so a re-import updates the exact rows
+// (rename-safe). `min_price` is a derived convenience column for analysis and is
+// ignored on import. Columns line up with the importer's parser.
+const EXPORT_HEADER =
+  "set_id,set,category,how_to_choose,product_id,product,label,brand,weight_g,rationale,min_price,buy_options";
+
+const csvCell = (v: string | number | null | undefined): string => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const dollars = (cents: number | null) => (cents == null ? "" : (cents / 100).toFixed(2));
+// "vendor|price|url|note", dropping trailing empty parts.
+function optionToStr(o: RecommendationSetBundle["picks"][number]["options"][number]): string {
+  const parts = [o.vendor, dollars(o.price_cents), o.url ?? "", o.note ?? ""];
+  while (parts.length > 1 && parts[parts.length - 1] === "") parts.pop();
+  return parts.join("|");
+}
+
+function buildExportCsv(sets: RecommendationSetBundle[]): string {
+  const lines = [EXPORT_HEADER];
+  for (const b of sets) {
+    for (const p of b.picks) {
+      lines.push(
+        [
+          b.set.id,
+          b.set.name,
+          b.set.category,
+          b.set.description,
+          p.gear.id,
+          p.gear.name,
+          p.gear.pick_label,
+          p.gear.brand,
+          p.gear.weight_grams,
+          p.gear.rationale,
+          dollars(priceFrom(p)),
+          p.options.map(optionToStr).join("; "),
+        ]
+          .map(csvCell)
+          .join(","),
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 const k = () => crypto.randomUUID();
 
 type OptionDraft = { vendor: string; price: string; url: string; note: string };
@@ -113,6 +171,9 @@ export function RecommendedGear() {
       subtitle: `${active.length} need${active.length === 1 ? "" : "s"}`,
       actions: (
         <>
+          <Button onClick={() => downloadCsv("recommended-gear.csv", buildExportCsv(active))} disabled={!active.length}>
+            Export CSV
+          </Button>
           <Button onClick={() => setImportOpen(true)}>Import CSV</Button>
           <Button variant="primary" onClick={() => setDraft(blankSet())}>+ New need</Button>
         </>
@@ -564,9 +625,12 @@ function CsvImportDrawer({
     >
       <div className="sp-rec__import">
         <p className="t10-sub">
-          Columns: <code>set, category, product, label, brand, weight_g, rationale, buy_options</code>.
-          Rows sharing a <code>set</code> group together. <code>buy_options</code> is{" "}
-          <code>vendor|price|url</code> separated by <code>;</code>.
+          One row per product; rows sharing a <code>set</code> group together.{" "}
+          <code>buy_options</code> is <code>vendor|price|url</code> separated by <code>;</code>.
+          Tip: <strong>Export CSV</strong> first, edit it, and re-import — the{" "}
+          <code>set_id</code> / <code>product_id</code> columns update those exact rows
+          in place (even if you rename them). Rows without ids are matched by name or
+          added new.
         </p>
         <div className="sp-rec__llm">
           <span className="t10-sub">Don’t have a CSV yet?</span>

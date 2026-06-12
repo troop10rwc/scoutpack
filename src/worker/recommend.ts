@@ -397,7 +397,8 @@ function dollarsToCents(s: string): number | null {
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 
-// One "vendor|price|url" triple list (separated by ";") → option inputs.
+// One "vendor|price|url|note" list (separated by ";") → option inputs. Price in
+// dollars; url and note optional (a 3-part triple still parses).
 function parseBuyOptions(cell: string): RecommendedOptionInput[] {
   if (!cell?.trim()) return [];
   return cell
@@ -405,31 +406,41 @@ function parseBuyOptions(cell: string): RecommendedOptionInput[] {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((piece) => {
-      const [vendor, price, url] = piece.split("|").map((x) => (x ?? "").trim());
-      return { vendor, price_cents: dollarsToCents(price ?? ""), url: url || null };
+      const [vendor, price, url, note] = piece.split("|").map((x) => (x ?? "").trim());
+      return {
+        vendor,
+        price_cents: dollarsToCents(price ?? ""),
+        url: url || null,
+        note: note || null,
+      };
     })
     .filter((o) => o.vendor);
 }
 
+export interface ParsedCsvPick {
+  id: string | null; // from the export's product_id column (matches in place)
+  name: string;
+  brand: string | null;
+  weight_grams: number | null;
+  pick_label: string | null;
+  rationale: string | null;
+  match_key: string;
+  options: RecommendedOptionInput[];
+}
 export interface ParsedCsvSet {
+  id: string | null; // from the export's set_id column (matches in place)
   name: string;
   category: string;
+  description: string | null;
   match_key: string;
-  picks: Array<{
-    name: string;
-    brand: string | null;
-    weight_grams: number | null;
-    pick_label: string | null;
-    rationale: string | null;
-    match_key: string;
-    options: RecommendedOptionInput[];
-  }>;
+  picks: ParsedCsvPick[];
 }
 
 export class CsvError extends Error {}
 
-// Parse the paste-CSV into grouped sets (order preserved). Throws CsvError on a
-// missing header or no usable rows.
+// Parse the paste-CSV into grouped sets (order preserved). The optional `set_id`
+// / `product_id` columns (present in exported CSVs) let a re-import update the
+// exact rows even when names changed; without them we fall back to name slugs.
 export function parseRecommendationCsv(text: string): ParsedCsvSet[] {
   const rows = parseCsvRows(text).filter((r) => r.some((c) => c.trim()));
   if (rows.length < 2) throw new CsvError("Need a header row and at least one data row.");
@@ -440,7 +451,10 @@ export function parseRecommendationCsv(text: string): ParsedCsvSet[] {
   if (iSet < 0 || iProduct < 0) {
     throw new CsvError("Header must include at least `set` and `product` columns.");
   }
+  const iSetId = col("set_id");
+  const iProductId = col("product_id");
   const iCat = col("category");
+  const iHow = col("how_to_choose");
   const iLabel = col("label");
   const iBrand = col("brand");
   const iWeight = col("weight_g");
@@ -454,19 +468,27 @@ export function parseRecommendationCsv(text: string): ParsedCsvSet[] {
     const setName = at(r, iSet);
     const product = at(r, iProduct);
     if (!setName || !product) continue;
-    const key = matchKey(setName);
+    const setId = at(r, iSetId) || null;
+    // Group by explicit id when present (rename-safe), else by the name slug.
+    const key = setId ? `id:${setId}` : matchKey(setName);
     let set = bySet.get(key);
     if (!set) {
-      set = { name: setName, category: at(r, iCat) || "Misc", match_key: key, picks: [] };
+      set = {
+        id: setId,
+        name: setName,
+        category: at(r, iCat) || "Misc",
+        description: at(r, iHow) || null,
+        match_key: matchKey(setName),
+        picks: [],
+      };
       bySet.set(key, set);
       order.push(key);
     }
-    if (!set.category || set.category === "Misc") {
-      const cat = at(r, iCat);
-      if (cat) set.category = cat;
-    }
+    if ((!set.category || set.category === "Misc") && at(r, iCat)) set.category = at(r, iCat);
+    if (!set.description && at(r, iHow)) set.description = at(r, iHow);
     const w = at(r, iWeight);
     set.picks.push({
+      id: at(r, iProductId) || null,
       name: product,
       brand: at(r, iBrand) || null,
       weight_grams: w ? Number(w) || null : null,
@@ -481,36 +503,50 @@ export function parseRecommendationCsv(text: string): ParsedCsvSet[] {
   return out;
 }
 
+// The live set a parsed row targets: by explicit id first (rename-safe), else by
+// name slug among active sets.
+async function findExistingSetId(db: D1Database, s: ParsedCsvSet): Promise<string | null> {
+  if (s.id) {
+    const byId = await db
+      .prepare(`SELECT id FROM recommendation_sets WHERE id = ?`)
+      .bind(s.id)
+      .first<{ id: string }>();
+    if (byId) return byId.id;
+  }
+  const byKey = await db
+    .prepare(`SELECT id FROM recommendation_sets WHERE match_key = ? AND is_active = 1`)
+    .bind(s.match_key)
+    .first<{ id: string }>();
+  return byKey?.id ?? null;
+}
+
 export interface CsvPreview {
   sets: Array<{ name: string; status: "new" | "update"; picks: number; newPicks: number }>;
   setCount: number;
   pickCount: number;
 }
 
-// Diff a parsed CSV against the live catalog (match sets by match_key, picks by
-// set+product match_key). No writes.
+// Diff a parsed CSV against the live catalog. No writes.
 export async function previewCsvImport(db: D1Database, text: string): Promise<CsvPreview> {
   const parsed = parseRecommendationCsv(text);
   const sets: CsvPreview["sets"] = [];
   let pickCount = 0;
   for (const s of parsed) {
     pickCount += s.picks.length;
-    const existing = await db
-      .prepare(`SELECT id FROM recommendation_sets WHERE match_key = ? AND is_active = 1`)
-      .bind(s.match_key)
-      .first<{ id: string }>();
+    const existingId = await findExistingSetId(db, s);
     let newPicks = s.picks.length;
-    if (existing) {
+    if (existingId) {
       const { results } = await db
-        .prepare(`SELECT match_key FROM recommended_gear WHERE set_id = ?`)
-        .bind(existing.id)
-        .all<{ match_key: string }>();
-      const have = new Set((results ?? []).map((r) => r.match_key));
-      newPicks = s.picks.filter((p) => !have.has(p.match_key)).length;
+        .prepare(`SELECT id, match_key FROM recommended_gear WHERE set_id = ?`)
+        .bind(existingId)
+        .all<{ id: string; match_key: string }>();
+      const ids = new Set((results ?? []).map((r) => r.id));
+      const keys = new Set((results ?? []).map((r) => r.match_key));
+      newPicks = s.picks.filter((p) => !(p.id && ids.has(p.id)) && !keys.has(p.match_key)).length;
     }
     sets.push({
       name: s.name,
-      status: existing ? "update" : "new",
+      status: existingId ? "update" : "new",
       picks: s.picks.length,
       newPicks,
     });
@@ -518,8 +554,9 @@ export async function previewCsvImport(db: D1Database, text: string): Promise<Cs
   return { sets, setCount: parsed.length, pickCount };
 }
 
-// Upsert the parsed CSV: sets matched by match_key, picks by set+product
-// match_key. Non-destructive — never deletes sets/picks absent from the CSV.
+// Upsert the parsed CSV. Sets/picks match by explicit id first (rename-safe; a
+// pick can even move sets), then by name slug. Non-destructive — never deletes
+// sets/picks absent from the CSV.
 export async function applyCsvImport(
   db: D1Database,
   text: string,
@@ -529,18 +566,15 @@ export async function applyCsvImport(
   let setCount = 0;
   let pickCount = 0;
   for (const s of parsed) {
-    let setId: string;
-    const existing = await db
-      .prepare(`SELECT id FROM recommendation_sets WHERE match_key = ? AND is_active = 1`)
-      .bind(s.match_key)
-      .first<{ id: string }>();
-    if (existing) {
-      setId = existing.id;
+    let setId = await findExistingSetId(db, s);
+    if (setId) {
       await db
         .prepare(
-          `UPDATE recommendation_sets SET category=?, updated_by=?, updated_at=datetime('now') WHERE id=?`,
+          `UPDATE recommendation_sets
+              SET name=?, category=?, description=?, match_key=?, updated_by=?, updated_at=datetime('now')
+            WHERE id=?`,
         )
-        .bind(s.category, updatedBy, setId)
+        .bind(s.name, s.category, s.description, s.match_key, updatedBy, setId)
         .run();
     } else {
       setId = crypto.randomUUID();
@@ -550,51 +584,61 @@ export async function applyCsvImport(
         .first<{ n: number }>();
       await db
         .prepare(
-          `INSERT INTO recommendation_sets (id, name, category, match_key, sort_order, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO recommendation_sets (id, name, category, description, match_key, sort_order, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(setId, s.name, s.category, s.match_key, row?.n ?? 0, updatedBy)
+        .bind(setId, s.name, s.category, s.description, s.match_key, row?.n ?? 0, updatedBy)
         .run();
     }
     setCount++;
     for (const [i, p] of s.picks.entries()) {
-      const existingPick = await db
-        .prepare(`SELECT id FROM recommended_gear WHERE set_id = ? AND match_key = ?`)
-        .bind(setId, p.match_key)
-        .first<{ id: string }>();
-      const pickInput: RecommendationPickInput = {
-        id: existingPick?.id,
-        name: p.name,
-        brand: p.brand,
-        weight_grams: p.weight_grams,
-        pick_label: p.pick_label,
-        rationale: p.rationale,
-        options: p.options,
-      };
-      if (existingPick) {
+      let pickId: string | null = null;
+      if (p.id) {
+        const byId = await db
+          .prepare(`SELECT id FROM recommended_gear WHERE id = ?`)
+          .bind(p.id)
+          .first<{ id: string }>();
+        pickId = byId?.id ?? null;
+      }
+      if (!pickId) {
+        const byKey = await db
+          .prepare(`SELECT id FROM recommended_gear WHERE set_id = ? AND match_key = ?`)
+          .bind(setId, p.match_key)
+          .first<{ id: string }>();
+        pickId = byKey?.id ?? null;
+      }
+      if (pickId) {
         await db
           .prepare(
             `UPDATE recommended_gear
-                SET name=?, category=?, brand=?, weight_grams=?, pick_label=?, rationale=?,
+                SET set_id=?, name=?, category=?, brand=?, weight_grams=?, pick_label=?, rationale=?,
                     match_key=?, sort_order=?, updated_by=?, updated_at=datetime('now')
               WHERE id=?`,
           )
           .bind(
-            p.name,
-            s.category,
-            p.brand,
-            p.weight_grams,
-            p.pick_label,
-            p.rationale,
-            p.match_key,
-            i * 10,
-            updatedBy,
-            existingPick.id,
+            setId, p.name, s.category, p.brand, p.weight_grams, p.pick_label, p.rationale,
+            p.match_key, i * 10, updatedBy, pickId,
           )
           .run();
-        await db.batch(optionStmts(db, existingPick.id, p.options));
+        await db.batch(optionStmts(db, pickId, p.options));
       } else {
-        await db.batch(insertPickStmts(db, setId, s.category, pickInput, i * 10, updatedBy));
+        await db.batch(
+          insertPickStmts(
+            db,
+            setId,
+            s.category,
+            {
+              name: p.name,
+              brand: p.brand,
+              weight_grams: p.weight_grams,
+              pick_label: p.pick_label,
+              rationale: p.rationale,
+              options: p.options,
+            },
+            i * 10,
+            updatedBy,
+          ),
+        );
       }
       pickCount++;
     }
