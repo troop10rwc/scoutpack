@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AppShell,
   BackOfficeTopNav,
@@ -127,9 +127,19 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  // Reset to the route default whenever the route changes; the mounted page
-  // republishes its own chrome in an effect right after.
-  useEffect(() => setChrome(null), [route.kind, route.kind === "event" ? route.eventId : ""]);
+  // Reset the headstrip when the route changes, synchronously *during render* so
+  // the freshly-mounted page's own chrome publish (a mount effect) always lands
+  // last. An effect-based reset races the child's publish (effect order isn't
+  // guaranteed parent-last, and StrictMode's double-invoke hides it in dev), so a
+  // page whose chrome deps don't change after its data loads — e.g. Recommended
+  // Gear with an empty catalog — could have its publish clobbered and show no
+  // actions until a full reload. Resetting in render is order-independent.
+  const routeKey = route.kind === "event" ? `event:${route.eventId}` : route.kind;
+  const prevRouteKey = useRef(routeKey);
+  if (prevRouteKey.current !== routeKey) {
+    prevRouteKey.current = routeKey;
+    setChrome(null);
+  }
 
   // Remember every event you open so each stays a navigable shortcut under
   // "Upcoming" even after you move to another section. The event page publishes
