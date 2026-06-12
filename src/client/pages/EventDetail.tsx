@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, EmptyState, SearchInput, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
-import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
+import { CategoryInput, Icon, NameInput, useCategorySuggestions, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
@@ -23,6 +23,7 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   const [bundle, setBundle] = useState<BundleOrEmpty | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const suggestions = useTemplateSuggestions();
+  const categorySuggestions = useCategorySuggestions();
   // Categories added via "Add new category" that hold no items yet.
   const [extraCategories, setExtraCategories] = useState<string[]>([]);
   const [newCat, setNewCat] = useState("");
@@ -149,8 +150,10 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     }
   }
 
-  function addCategory(existing: string[]) {
-    const c = newCat.trim();
+  function addCategory(existing: string[], name?: string) {
+    // A picked suggestion passes its value directly (setNewCat hasn't committed
+    // yet); the button/Enter fall back to the current field.
+    const c = (typeof name === "string" ? name : newCat).trim();
     if (!c) return;
     if (!existing.includes(c)) setExtraCategories((x) => [...x, c]);
     setNewCat("");
@@ -315,12 +318,15 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
       })}
 
       <div className="sp-addcat">
-        <input
-          className="sp-cell"
+        <CategoryInput
           placeholder="New category name"
           value={newCat}
-          onChange={(e) => setNewCat(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addCategory(renderCats)}
+          // Only suggest categories not already on this packing list.
+          options={categorySuggestions.filter(
+            (c) => !renderCats.some((r) => r.toLowerCase() === c.toLowerCase()),
+          )}
+          onChange={setNewCat}
+          onSubmit={(name) => addCategory(renderCats, name)}
         />
         <Button onClick={() => addCategory(renderCats)} disabled={!newCat.trim()}>
           + Add new category
