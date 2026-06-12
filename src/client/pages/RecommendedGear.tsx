@@ -518,19 +518,13 @@ function SetEditorDrawer({
               <div className="sp-rec__pickhead">
                 <input
                   className="sp-rec__pickname"
-                  placeholder="Product (e.g. Nemo Disco 30)"
+                  placeholder="Product name (e.g. Nemo Disco 30)"
                   value={p.name}
                   onChange={(e) => onEditPick(p.key, { name: e.target.value })}
                 />
-                <input
-                  className="sp-rec__picklabel"
-                  placeholder="Best for… (Budget)"
-                  value={p.label}
-                  onChange={(e) => onEditPick(p.key, { label: e.target.value })}
-                />
                 <button
                   className="sp-iconbtn sp-iconbtn--del"
-                  title="Remove pick"
+                  title="Remove this pick"
                   onClick={() =>
                     onChange({ ...draft, picks: draft.picks.filter((x) => x.key !== p.key) })
                   }
@@ -538,44 +532,59 @@ function SetEditorDrawer({
                   ×
                 </button>
               </div>
-              <div className="sp-rec__pickrow">
+              <div className="sp-rec__attrs">
+                <span className="sp-rec__flabel">Best for</span>
                 <input
-                  className="sp-rec__pickbrand"
-                  placeholder="Brand"
+                  placeholder="Budget / Most durable / Lightest"
+                  value={p.label}
+                  onChange={(e) => onEditPick(p.key, { label: e.target.value })}
+                />
+                <span className="sp-rec__flabel">Brand</span>
+                <input
+                  placeholder="e.g. Nemo"
                   value={p.brand}
                   onChange={(e) => onEditPick(p.key, { brand: e.target.value })}
                 />
+                <span className="sp-rec__flabel">Weight</span>
+                <span className="sp-rec__wt">
+                  <input
+                    type="number"
+                    placeholder="—"
+                    value={p.weight}
+                    onChange={(e) => onEditPick(p.key, { weight: e.target.value })}
+                  />
+                  <span className="sp-rec__wtunit">grams</span>
+                </span>
+                <span className="sp-rec__flabel">Why</span>
                 <input
-                  className="sp-rec__pickweight"
-                  type="number"
-                  placeholder="g"
-                  value={p.weight}
-                  onChange={(e) => onEditPick(p.key, { weight: e.target.value })}
-                />
-                <input
-                  className="sp-rec__pickrationale"
-                  placeholder="Why pick this"
+                  placeholder="One-line reason to pick this"
                   value={p.rationale}
                   onChange={(e) => onEditPick(p.key, { rationale: e.target.value })}
                 />
               </div>
               <div className="sp-rec__opts">
+                <span className="sp-rec__optstitle">Where to buy</span>
+                {p.options.length > 0 && (
+                  <div className="sp-rec__opthead">
+                    <span>Vendor</span>
+                    <span>Price</span>
+                    <span>Link</span>
+                    <span />
+                  </div>
+                )}
                 {p.options.map((o, i) => (
                   <div key={i} className="sp-rec__opt">
                     <input
-                      className="sp-rec__optvendor"
-                      placeholder="Vendor"
+                      placeholder="REI"
                       value={o.vendor}
                       onChange={(e) => onEditOption(p.key, i, { vendor: e.target.value })}
                     />
                     <input
-                      className="sp-rec__optprice"
-                      placeholder="$"
+                      placeholder="0.00"
                       value={o.price}
                       onChange={(e) => onEditOption(p.key, i, { price: e.target.value })}
                     />
                     <input
-                      className="sp-rec__opturl"
                       placeholder="https://…"
                       value={o.url}
                       onChange={(e) => onEditOption(p.key, i, { url: e.target.value })}
