@@ -286,3 +286,211 @@
 }
 .sp-linkbadge svg { width: 13px; height: 13px; }
 .sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }
+
+/* The kit's Drawer is built to live inside an <OverlayHost> (position: relative)
+   that fills the viewport; AppShell doesn't provide one, so we adapt the kit's
+   in-context drawer into a full-viewport modal here. Two problems without that host:
+   1. The scrim/panel are `position: absolute`, so they size to the full document
+      (thousands of px tall) instead of the viewport. On a narrow screen the
+      full-width panel and its close "×" scroll off-screen with the page — the
+      drawer becomes impossible to dismiss. Pin both to the viewport with fixed.
+   2. The kit's z-index (scrim 10 / drawer 11) sits below the sticky
+      BackOfficeTopNav (z 50), so an open drawer renders *behind* the top bar and
+      its header + close "×" get occluded. Lift both above the chrome so the
+      drawer is a true full-viewport modal.
+   (The closed-scrim "swallows every click" bug — Radix's inline pointer-events
+   defeating the kit's `.t10-scrim { pointer-events: none }` — is fixed upstream
+   in @troop10rwc/ui@0.6.1, so no override is needed here for that.) */
+.t10-scrim { position: fixed; z-index: 90; }
+.t10-drawer { position: fixed; z-index: 91; }
+
+/* Small "best for" pill on a pick (suggestion / browse drawer / wishlist). */
+.sp-suggest__tag, .sp-recbrowse__tag, .sp-wishcard__tag {
+  display: inline-block; flex: 0 0 auto; padding: 0 6px; border-radius: 999px;
+  background: var(--t10-pine-tint); color: var(--t10-pine);
+  font-size: var(--t10-fs-xs); font-weight: 600; line-height: 1.5; white-space: nowrap;
+}
+
+/* ---------- recommended gear: multi-pick suggestion on a missing packing row ---------- */
+.sp-suggest { margin: 3px 6px 1px; font-size: var(--t10-fs-xs); }
+.sp-suggest__head { color: var(--t10-ink-soft); margin-bottom: 3px; }
+.sp-suggest__set { color: var(--t10-ink); font-weight: 600; }
+.sp-suggest__hint { color: var(--t10-ink-faint); }
+.sp-suggest__picks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sp-suggest__pick {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 3px 6px; border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface);
+}
+.sp-suggest__name { color: var(--t10-ink); font-weight: 500; }
+.sp-suggest__price { color: var(--t10-pine); }
+.sp-suggest__why { color: var(--t10-ink-faint); flex: 1 1 8rem; min-width: 0; }
+.sp-suggest__add {
+  margin-left: auto; border: 1px solid var(--t10-line); background: var(--t10-surface);
+  color: var(--t10-pine); font: inherit; font-size: var(--t10-fs-xs);
+  padding: 1px 7px; border-radius: var(--t10-r-sm); cursor: pointer; white-space: nowrap;
+}
+.sp-suggest__add:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
+.sp-suggest__done { margin-left: auto; color: var(--t10-pine); font-size: var(--t10-fs-xs); white-space: nowrap; }
+
+/* ---------- Export split button (primary action + ▾ dropdown) ---------- */
+.sp-split { position: relative; display: inline-flex; align-items: stretch; }
+.sp-split > .t10-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.sp-split__toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 9px; font-size: 10px; line-height: 1;
+  border: 1px solid var(--t10-line); border-left: none; background: var(--t10-surface);
+  color: var(--t10-ink); cursor: pointer;
+  border-top-right-radius: var(--t10-r-sm); border-bottom-right-radius: var(--t10-r-sm);
+}
+.sp-split__toggle:hover { background: var(--t10-surface-3); }
+.sp-split__toggle:disabled { opacity: .5; cursor: not-allowed; }
+.sp-split__flash {
+  position: absolute; right: 0; bottom: calc(100% + 4px); white-space: nowrap;
+  font-size: var(--t10-fs-xs); color: var(--t10-pine);
+  background: var(--t10-surface); border: 1px solid var(--t10-line-soft);
+  padding: 1px 7px; border-radius: var(--t10-r-sm);
+}
+.sp-split__menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 60;
+  list-style: none; margin: 0; padding: 4px; min-width: 250px;
+  background: var(--t10-surface); border: 1px solid var(--t10-line);
+  border-radius: var(--t10-r); box-shadow: var(--t10-shadow-lg);
+  text-align: left;
+}
+.sp-split__menu li {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 9px; border-radius: var(--t10-r-sm); cursor: pointer;
+}
+.sp-split__menu li:hover { background: var(--t10-surface-3); }
+.sp-split__title { font-size: var(--t10-fs-sm); font-weight: 600; color: var(--t10-ink); }
+.sp-split__sub { font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
+
+/* ---------- recommended gear: need cards (picks shown inline on the list) ---------- */
+.sp-recneed {
+  padding: var(--t10-s3) var(--t10-s4);
+  border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r);
+  background: var(--t10-surface); margin-bottom: var(--t10-s3);
+}
+.sp-recneed__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sp-recneed__name { font-size: var(--t10-fs-md); font-weight: 600; color: var(--t10-ink); }
+.sp-recneed__spacer { flex: 1 1 auto; }
+.sp-recneed__how { margin: 2px 0 0; }
+.sp-recneed__picks { list-style: none; margin: var(--t10-s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s3); }
+.sp-recneed__pick { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; font-size: var(--t10-fs-sm); }
+.sp-recneed__pickline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+.sp-recneed__pickname { color: var(--t10-ink); font-weight: 500; }
+.sp-recneed__why { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); flex: 1 1 10rem; min-width: 0; }
+/* Buy options listed beneath each product option. */
+.sp-recneed__opts { list-style: none; margin: 1px 0 0 var(--t10-s5); padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.sp-recneed__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
+.sp-recneed__vendor { color: var(--t10-ink); min-width: 7rem; }
+.sp-recneed__oprice { color: var(--t10-pine); }
+.sp-recneed__buy { color: var(--t10-pine); text-decoration: none; }
+.sp-recneed__buy:hover { text-decoration: underline; }
+
+/* ---------- recommended gear: leader catalog editor ---------- */
+.sp-rec__archived { opacity: .8; }
+.sp-rec__archlist { margin: 0; padding-left: var(--t10-s5); color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
+.sp-rec__form { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-rec__row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--t10-s4); }
+.sp-rec__opts { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.sp-rec__optstitle { font-size: var(--t10-fs-xs); font-weight: 600; color: var(--t10-ink-faint); }
+/* Header + rows share one grid template so the columns line up. */
+.sp-rec__opthead, .sp-rec__opt {
+  display: grid; grid-template-columns: 1.5fr .7fr 2fr 20px; gap: 4px; align-items: center;
+}
+.sp-rec__opthead span { padding-left: 7px; font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); }
+.sp-rec__opthead span:last-child { padding: 0; }
+.sp-rec__footer { display: flex; align-items: center; gap: var(--t10-s3); width: 100%; }
+.sp-rec__footerspacer { flex: 1 1 auto; }
+
+/* A product pick card inside the set editor (set → picks → buy options). */
+.sp-rec__pick {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: var(--t10-s3) var(--t10-s4); border: 1px solid var(--t10-line-soft);
+  border-left: 3px solid var(--t10-clay); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface-2);
+}
+.sp-rec__pickhead { display: flex; align-items: center; gap: 6px; }
+/* Fields render as inline-editable text — transparent until hover/focus — to keep
+   the dense editor uncluttered (same feel as the closet/template cells). This
+   rule covers the buy-option inputs too (they're nested inside the pick card). */
+.sp-rec__pick input {
+  width: 100%; min-width: 0; border: 1px solid transparent; background: transparent;
+  padding: 4px 6px; border-radius: var(--t10-r-sm); font: inherit;
+  font-size: var(--t10-fs-sm); color: var(--t10-ink);
+}
+.sp-rec__pick input:hover { border-color: var(--t10-line); }
+.sp-rec__pick input:focus {
+  border-color: var(--t10-pine); background: var(--t10-surface); outline: none; box-shadow: var(--t10-ring);
+}
+.sp-rec__pick input.sp-rec__pickname { flex: 1 1 auto; font-weight: 600; font-size: var(--t10-fs-md); }
+/* Aligned label : value grid for the pick attributes — every field is labelled,
+   and the label turns pine while its field is focused (a clear "what is this?"). */
+.sp-rec__attrs { display: grid; grid-template-columns: 4.75rem 1fr; gap: 2px 10px; align-items: center; }
+.sp-rec__flabel { font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); }
+.sp-rec__flabel:has(+ input:focus),
+.sp-rec__flabel:has(+ .sp-rec__wt:focus-within) { color: var(--t10-pine); font-weight: 600; }
+.sp-rec__wt { display: inline-flex; align-items: center; gap: 3px; }
+.sp-rec__pick .sp-rec__wt input { width: 4.5rem; flex: 0 0 auto; }
+.sp-rec__wtunit { font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); }
+/* Compact, faint delete in the dense editor; brightens on hover. */
+.sp-rec__pickhead .sp-iconbtn--del, .sp-rec__opt .sp-iconbtn--del {
+  font-size: 1rem; padding: 0 2px; opacity: .4; flex: 0 0 auto;
+}
+.sp-rec__pickhead .sp-iconbtn--del:hover, .sp-rec__opt .sp-iconbtn--del:hover { opacity: 1; }
+
+/* CSV paste-import panel inside the import drawer. */
+.sp-rec__import { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-rec__llm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px dashed var(--t10-line); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface-2);
+}
+.sp-rec__import code {
+  font-family: var(--t10-font-mono); font-size: var(--t10-fs-xs);
+  background: var(--t10-surface-3); padding: 0 3px; border-radius: 3px;
+}
+.sp-rec__csv {
+  width: 100%; min-height: 11rem; resize: vertical; box-sizing: border-box;
+  border: 1px solid var(--t10-line); background: var(--t10-surface);
+  padding: 8px 10px; border-radius: var(--t10-r-sm);
+  font-family: var(--t10-font-mono); font-size: var(--t10-fs-xs);
+  color: var(--t10-ink); white-space: pre; overflow: auto;
+}
+.sp-rec__csv:focus { border-color: var(--t10-pine); outline: none; box-shadow: var(--t10-ring); }
+
+/* ---------- recommended gear: browse drawer (from the closet) ---------- */
+.sp-recbrowse { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-recbrowse__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sp-recbrowse__item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--t10-s3);
+  padding: 6px 8px; border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface);
+}
+.sp-recbrowse__info { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.sp-recbrowse__name { font-size: var(--t10-fs-sm); color: var(--t10-ink); font-weight: 500; }
+.sp-recbrowse__price { color: var(--t10-pine); font-size: var(--t10-fs-xs); }
+.sp-recbrowse__set { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--t10-s3); }
+.sp-recbrowse__need { font-size: var(--t10-fs-sm); font-weight: 600; color: var(--t10-ink); }
+
+/* ---------- wishlist ---------- */
+.sp-wishlist__hint { margin: 0; }
+.sp-wishlist__got { margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-wishcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s3); }
+.sp-wishcard {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--t10-s4);
+  padding: var(--t10-s4); border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r);
+  background: var(--t10-surface);
+}
+.sp-wishcard__main { min-width: 0; flex: 1 1 auto; }
+.sp-wishcard__name { font-size: var(--t10-fs-md); color: var(--t10-ink); font-weight: 500; }
+.sp-wishcard__desc { margin: 2px 0 6px; font-size: var(--t10-fs-sm); color: var(--t10-ink-soft); }
+.sp-wishcard__opts { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sp-wishcard__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-sm); }
+.sp-wishcard__vendor { color: var(--t10-ink); min-width: 5rem; }
+.sp-wishcard__buy { color: var(--t10-pine); text-decoration: none; font-size: var(--t10-fs-xs); }
+.sp-wishcard__buy:hover { text-decoration: underline; }
+.sp-wishcard__noopts { margin: 6px 0 0; }
+.sp-wishcard__acts { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }

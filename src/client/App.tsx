@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AppShell,
   BackOfficeTopNav,
   Button,
   EmptyState,
+  type NavGroup,
   type NavItem,
 } from "@troop10rwc/ui";
 import { api } from "./api.ts";
@@ -12,8 +13,10 @@ import { ChromeProvider, type Chrome } from "./chrome.tsx";
 import type { Me, Scout } from "../shared/types.ts";
 import { Dashboard } from "./pages/Dashboard.tsx";
 import { Closet } from "./pages/Closet.tsx";
+import { Wishlist } from "./pages/Wishlist.tsx";
 import { EventDetail } from "./pages/EventDetail.tsx";
 import { Templates } from "./pages/Templates.tsx";
+import { RecommendedGear } from "./pages/RecommendedGear.tsx";
 import { Roster } from "./pages/Roster.tsx";
 
 const ACTIVE_SCOUT_KEY = "scoutpack.activeScoutId";
@@ -48,15 +51,25 @@ const APP_ID = "gearlist";
 // any of those hosts. See src/worker/auth.ts.
 const ACCESS_LOGOUT_URL = "/cdn-cgi/access/logout";
 
-// AppShell groups nav by hard-coded ids: "lists" + "closet" under Operations,
-// "roster" under Roster. Upcoming events and a single packing list both live
-// under "lists"; the closet under "closet". Each remembered event is injected
-// as a child of "lists" at render time (see `nav` below).
-const NAV: NavItem[] = [
-  { id: "lists", label: "Upcoming", icon: "◧" },
-  { id: "closet", label: "Closet", icon: "⛺" },
-  { id: "templates", label: "Templates", icon: "▤", leaderOnly: true },
-  { id: "roster", label: "Roster", icon: "◉", leaderOnly: true },
+// Grouped sidebar nav (NavGroup[]). "Operations" carries the scout-facing and
+// leader-editing sections; "Roster" the role management. Each remembered event is
+// injected as a child of "lists" at render time (see `nav` below). Leader-only
+// items are gated with leaderOnly; the page itself is also gated in `Page`.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Operations",
+    items: [
+      { id: "lists", label: "Upcoming", icon: "◧" },
+      { id: "closet", label: "Closet", icon: "⛺" },
+      { id: "wishlist", label: "Wishlist", icon: "♡" },
+      { id: "templates", label: "Templates", icon: "▤", leaderOnly: true },
+      { id: "recommended", label: "Recommended Gear", icon: "✦", leaderOnly: true },
+    ],
+  },
+  {
+    label: "Roster",
+    items: [{ id: "roster", label: "Roster", icon: "◉", leaderOnly: true }],
+  },
 ];
 
 // Sidebar id for the active highlight. A selected event is a child of "lists"
@@ -65,14 +78,18 @@ const ROUTE_TO_NAV: Record<Route["kind"], string> = {
   dashboard: "lists",
   event: "lists",
   closet: "closet",
+  wishlist: "wishlist",
   templates: "templates",
+  recommended: "recommended",
   roster: "roster",
 };
 
 const NAV_TO_PATH: Record<string, string> = {
   lists: "/",
   closet: "/closet",
+  wishlist: "/wishlist",
   templates: "/templates",
+  recommended: "/recommended",
   roster: "/roster",
 };
 
@@ -83,7 +100,9 @@ const DEFAULT_TITLE: Record<Route["kind"], string> = {
   dashboard: "Upcoming",
   event: "Packing List",
   closet: "Closet",
+  wishlist: "Wishlist",
   templates: "Templates",
+  recommended: "Recommended Gear",
   roster: "Roster & Roles",
 };
 
@@ -108,9 +127,19 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  // Reset to the route default whenever the route changes; the mounted page
-  // republishes its own chrome in an effect right after.
-  useEffect(() => setChrome(null), [route.kind, route.kind === "event" ? route.eventId : ""]);
+  // Reset the headstrip when the route changes, synchronously *during render* so
+  // the freshly-mounted page's own chrome publish (a mount effect) always lands
+  // last. An effect-based reset races the child's publish (effect order isn't
+  // guaranteed parent-last, and StrictMode's double-invoke hides it in dev), so a
+  // page whose chrome deps don't change after its data loads — e.g. Recommended
+  // Gear with an empty catalog — could have its publish clobbered and show no
+  // actions until a full reload. Resetting in render is order-independent.
+  const routeKey = route.kind === "event" ? `event:${route.eventId}` : route.kind;
+  const prevRouteKey = useRef(routeKey);
+  if (prevRouteKey.current !== routeKey) {
+    prevRouteKey.current = routeKey;
+    setChrome(null);
+  }
 
   // Remember every event you open so each stays a navigable shortcut under
   // "Upcoming" even after you move to another section. The event page publishes
@@ -172,12 +201,15 @@ export function App() {
   const user = { name: me.name || me.email, role: isLeader ? "Leader" : "Scout" };
   const activeScout = me.scouts.find((s) => s.id === activeScoutId) ?? me.scouts[0];
   const scoutRoute =
-    route.kind === "dashboard" || route.kind === "closet" || route.kind === "event";
+    route.kind === "dashboard" ||
+    route.kind === "closet" ||
+    route.kind === "wishlist" ||
+    route.kind === "event";
 
   // Hang each remembered event off "Upcoming" as a nested, directly-navigable
   // child (a hash link), so it stays a one-click shortcut from anywhere. The
   // label carries an unpin "×" that swallows the click so it doesn't navigate.
-  const nav: NavItem[] = NAV.map((item) =>
+  const withPins = (item: NavItem): NavItem =>
     item.id === "lists" && selectedEvents.length
       ? {
           ...item,
@@ -205,8 +237,11 @@ export function App() {
             ),
           })),
         }
-      : item,
-  );
+      : item;
+  const nav: NavGroup[] = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map(withPins),
+  }));
   const active =
     route.kind === "event" ? eventNavId(route.eventId) : ROUTE_TO_NAV[route.kind];
 
@@ -265,6 +300,8 @@ function Page({
       return activeScout ? <Dashboard scout={activeScout} me={me} /> : <NoScout />;
     case "closet":
       return activeScout ? <Closet scout={activeScout} /> : <NoScout />;
+    case "wishlist":
+      return activeScout ? <Wishlist scout={activeScout} /> : <NoScout />;
     case "event":
       return activeScout ? (
         <EventDetail scout={activeScout} eventId={route.eventId} />
@@ -273,6 +310,8 @@ function Page({
       );
     case "templates":
       return isLeader ? <Templates /> : <LeadersOnly />;
+    case "recommended":
+      return isLeader ? <RecommendedGear /> : <LeadersOnly />;
     case "roster":
       return isLeader ? <Roster meEmail={me.email} /> : <LeadersOnly />;
   }

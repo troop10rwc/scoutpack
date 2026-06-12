@@ -44,6 +44,21 @@ import {
   updatePackingListItem,
   type ClosetItemInput,
 } from "./gear.ts";
+import {
+  addToWishlist,
+  applyCsvImport,
+  archiveRecommendationSet,
+  createRecommendationSet,
+  CsvError,
+  fulfillWishlistItem,
+  listRecommendationSets,
+  listWishlist,
+  previewCsvImport,
+  removeWishlistItem,
+  updateRecommendationSet,
+  type RecommendationSetInput,
+  type WishlistInput,
+} from "./recommend.ts";
 
 interface Bindings extends AuthBindings {
   ASSETS: Fetcher;
@@ -444,6 +459,131 @@ api.post("/templates/:eventType", async (c) => {
     items: body.items as Parameters<typeof publishTemplate>[3]["items"],
   });
   return c.json(bundle, 201);
+});
+
+// ---- recommendation sets (leader-curated catalog) ----
+// Readable by any authed user (scouts browse to wishlist). Leaders see archived
+// sets too when ?include_archived=1.
+api.get("/recommendation-sets", async (c) => {
+  const includeArchived =
+    c.req.query("include_archived") === "1" && c.get("user").role === "leader";
+  return c.json(await listRecommendationSets(c.env.DB, includeArchived));
+});
+
+api.post("/recommendation-sets", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<Partial<RecommendationSetInput>>();
+  if (!body.name?.trim() || !body.category?.trim())
+    return c.json(bad("name and category are required"), 400);
+  const bundle = await createRecommendationSet(
+    c.env.DB,
+    { ...(body as RecommendationSetInput), picks: body.picks ?? [] },
+    c.get("user").email,
+  );
+  return c.json(bundle, 201);
+});
+
+api.patch("/recommendation-sets/:id", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<Partial<RecommendationSetInput>>();
+  if (!body.name?.trim() || !body.category?.trim())
+    return c.json(bad("name and category are required"), 400);
+  const bundle = await updateRecommendationSet(
+    c.env.DB,
+    c.req.param("id"),
+    { ...(body as RecommendationSetInput), picks: body.picks ?? [] },
+    c.get("user").email,
+  );
+  return bundle ? c.json(bundle) : c.json(bad("not found"), 404);
+});
+
+api.post("/recommendation-sets/:id/archive", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const ok = await archiveRecommendationSet(c.env.DB, c.req.param("id"));
+  return ok ? c.json({ ok: true }) : c.json(bad("not found"), 404);
+});
+
+// Bulk load from pasted CSV: preview (no writes) then apply (upsert). Leader-only.
+api.post("/recommendation-sets/import/preview", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<{ csv?: string }>();
+  if (!body.csv?.trim()) return c.json(bad("csv is required"), 400);
+  try {
+    return c.json(await previewCsvImport(c.env.DB, body.csv));
+  } catch (e) {
+    if (e instanceof CsvError) return c.json(bad(e.message), 400);
+    throw e;
+  }
+});
+
+api.post("/recommendation-sets/import", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<{ csv?: string }>();
+  if (!body.csv?.trim()) return c.json(bad("csv is required"), 400);
+  try {
+    const result = await applyCsvImport(c.env.DB, body.csv, c.get("user").email);
+    return c.json(result, 201);
+  } catch (e) {
+    if (e instanceof CsvError) return c.json(bad(e.message), 400);
+    throw e;
+  }
+});
+
+// ---- wishlist (per-scout) ----
+api.get("/scouts/:scoutId/wishlist", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  return c.json(await listWishlist(c.env.DB, scoutId));
+});
+
+api.post("/scouts/:scoutId/wishlist", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const body = await c.req.json<WishlistInput>();
+  if (!body.gear_id && !body.name?.trim())
+    return c.json(bad("gear_id or name is required"), 400);
+  const item = await addToWishlist(c.env.DB, scoutId, body);
+  return item ? c.json(item, 201) : c.json(bad("could not add to wishlist"), 400);
+});
+
+api.delete("/scouts/:scoutId/wishlist/:itemId", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const ok = await removeWishlistItem(c.env.DB, scoutId, c.req.param("itemId"));
+  return ok ? c.json({ ok: true }) : c.json(bad("item not found"), 404);
+});
+
+// "Got it": create the closet item and drop the wishlist row.
+api.post("/scouts/:scoutId/wishlist/:itemId/fulfill", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const closetItem = await fulfillWishlistItem(c.env.DB, scoutId, c.req.param("itemId"));
+  return closetItem ? c.json(closetItem, 201) : c.json(bad("item not found"), 404);
 });
 
 api.notFound((c) => c.json(bad("not found"), 404));

@@ -3,6 +3,7 @@ import { Button, EmptyState, SearchInput, StatusPill } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
+import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
 
@@ -34,6 +35,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
   const [closet, setCloset] = useState<ClosetItem[] | null>(null);
   // Id of the closet item currently being dragged from the gear sidebar.
   const [gearDragId, setGearDragId] = useState<string | null>(null);
+  // Recommended-gear ids the scout has wishlisted this session (to flip the button).
+  const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
 
   const ev = bundle?.event ?? null;
   usePageChrome(
@@ -173,6 +176,21 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     patch(packingItemId, { closet_item_id: closetItemId });
   }
 
+  // Add a missing item's suggested product to the active scout's wishlist.
+  async function addToWishlist(gearId: string) {
+    setWishlisted((prev) => new Set(prev).add(gearId)); // optimistic
+    try {
+      await api.addToWishlist(scout.id, { gear_id: gearId });
+    } catch (e) {
+      setWishlisted((prev) => {
+        const next = new Set(prev);
+        next.delete(gearId);
+        return next;
+      });
+      setErr((e as Error).message);
+    }
+  }
+
   if (err) return <EmptyState>{err}</EmptyState>;
   if (!bundle) return <EmptyState>Loading…</EmptyState>;
 
@@ -258,6 +276,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       dragOver={dragOverId === it.id}
                       gearTarget={!it.owned && gearDragId !== null}
                       onGearDrop={() => linkGear(it.id)}
+                      wishlistedIds={wishlisted}
+                      onWishlist={addToWishlist}
                       onDragStart={() => setDragId(it.id)}
                       onDragEnd={() => {
                         setDragId(null);
@@ -452,6 +472,8 @@ function PackRow({
   dragOver,
   gearTarget,
   onGearDrop,
+  wishlistedIds,
+  onWishlist,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -468,6 +490,9 @@ function PackRow({
   // True while closet gear is being dragged and this row is a valid (missing) target.
   gearTarget: boolean;
   onGearDrop: () => void;
+  // Which picks (by gear id) are already on this scout's wishlist.
+  wishlistedIds: Set<string>;
+  onWishlist: (gearId: string) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   onDragEnter: () => void;
@@ -547,6 +572,48 @@ function PackRow({
           </div>
         ) : (
           nameInput
+        )}
+        {/* On a missing row, surface the leader-suggested picks; scout chooses one. */}
+        {!item.owned && item.recommendation && item.recommendation.picks.length > 0 && (
+          <div className="sp-suggest">
+            <div className="sp-suggest__head">
+              Recommended: <span className="sp-suggest__set">{item.recommendation.set.name}</span>
+              {item.recommendation.set.description && (
+                <span className="sp-suggest__hint"> — {item.recommendation.set.description}</span>
+              )}
+            </div>
+            <ul className="sp-suggest__picks">
+              {item.recommendation.picks.map((p) => {
+                const price = priceFrom(p);
+                const added = wishlistedIds.has(p.gear.id);
+                return (
+                  <li key={p.gear.id} className="sp-suggest__pick">
+                    {p.gear.pick_label && (
+                      <span className="sp-suggest__tag">{p.gear.pick_label}</span>
+                    )}
+                    <span className="sp-suggest__name">{p.gear.name}</span>
+                    {price != null && (
+                      <span className="sp-suggest__price t10-num">from {fmtPrice(price)}</span>
+                    )}
+                    {p.gear.rationale && (
+                      <span className="sp-suggest__why">{p.gear.rationale}</span>
+                    )}
+                    {added ? (
+                      <span className="sp-suggest__done">✓ On wishlist</span>
+                    ) : (
+                      <button
+                        className="sp-suggest__add"
+                        onClick={() => onWishlist(p.gear.id)}
+                        title={`Add ${p.gear.name} to wishlist`}
+                      >
+                        + Wishlist
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </td>
       <td className="sp-gear__desc">
