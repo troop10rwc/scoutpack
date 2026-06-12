@@ -390,33 +390,39 @@
 .sp-rec__archlist { margin: 0; padding-left: var(--t10-s5); color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }
 .sp-rec__form { display: flex; flex-direction: column; gap: var(--t10-s4); }
 .sp-rec__row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--t10-s4); }
-.sp-rec__opts { display: flex; flex-direction: column; gap: 6px; }
-.sp-rec__opt { display: grid; grid-template-columns: 1.3fr .7fr 1.6fr 1fr auto; gap: 6px; align-items: center; }
-.sp-rec__opt input {
-  border: 1px solid var(--t10-line); background: var(--t10-surface);
-  padding: 5px 7px; border-radius: var(--t10-r-sm); font: inherit;
-  font-size: var(--t10-fs-sm); color: var(--t10-ink); min-width: 0;
-}
-.sp-rec__opt input:focus { border-color: var(--t10-pine); outline: none; box-shadow: var(--t10-ring); }
+.sp-rec__opts { display: flex; flex-direction: column; gap: 2px; }
+/* vendor · price · url · delete — the × sits in its own intrinsic-width column. */
+.sp-rec__opt { display: grid; grid-template-columns: 1.4fr .6fr 1.8fr auto; gap: 4px; align-items: center; }
 .sp-rec__footer { display: flex; align-items: center; gap: var(--t10-s3); width: 100%; }
 .sp-rec__footerspacer { flex: 1 1 auto; }
 
 /* A product pick card inside the set editor (set → picks → buy options). */
 .sp-rec__pick {
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 2px;
   padding: var(--t10-s3); border: 1px solid var(--t10-line-soft);
   border-left: 3px solid var(--t10-clay); border-radius: var(--t10-r-sm);
   background: var(--t10-surface-2);
 }
-.sp-rec__pickhead { display: grid; grid-template-columns: 1fr .8fr auto; gap: 6px; align-items: center; }
-.sp-rec__pickrow { display: grid; grid-template-columns: 1fr .5fr 1.5fr; gap: 6px; }
+.sp-rec__pickhead { display: grid; grid-template-columns: 1fr .8fr auto; gap: 4px; align-items: center; }
+.sp-rec__pickrow { display: grid; grid-template-columns: 1fr .5fr 1.6fr; gap: 4px; }
+/* Fields render as inline-editable text — transparent until hover/focus — to keep
+   the dense editor uncluttered (same feel as the closet/template cells). This
+   rule covers the buy-option inputs too (they're nested inside the pick card). */
 .sp-rec__pick input {
-  border: 1px solid var(--t10-line); background: var(--t10-surface);
-  padding: 5px 7px; border-radius: var(--t10-r-sm); font: inherit;
-  font-size: var(--t10-fs-sm); color: var(--t10-ink); min-width: 0;
+  width: 100%; min-width: 0; border: 1px solid transparent; background: transparent;
+  padding: 4px 6px; border-radius: var(--t10-r-sm); font: inherit;
+  font-size: var(--t10-fs-sm); color: var(--t10-ink);
 }
-.sp-rec__pick input:focus { border-color: var(--t10-pine); outline: none; box-shadow: var(--t10-ring); }
+.sp-rec__pick input:hover { border-color: var(--t10-line); }
+.sp-rec__pick input:focus {
+  border-color: var(--t10-pine); background: var(--t10-surface); outline: none; box-shadow: var(--t10-ring);
+}
 .sp-rec__pickname { font-weight: 500; }
+/* Compact, faint delete in the dense editor; brightens on hover. */
+.sp-rec__pickhead .sp-iconbtn--del, .sp-rec__opt .sp-iconbtn--del {
+  font-size: 1rem; padding: 0 2px; opacity: .4;
+}
+.sp-rec__pickhead .sp-iconbtn--del:hover, .sp-rec__opt .sp-iconbtn--del:hover { opacity: 1; }
 
 /* CSV paste-import panel inside the import drawer. */
 .sp-rec__import { display: flex; flex-direction: column; gap: var(--t10-s4); }
