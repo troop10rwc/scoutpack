@@ -90,7 +90,9 @@
 /* Packing list: packed checkbox column + "missing from closet" row tint. */
 .sp-gear__check { width: 2rem; text-align: center; }
 .sp-gear__check input { accent-color: var(--t10-clay); cursor: pointer; }
-.sp-gear tr.is-missing td { background: var(--t10-surface-3); vertical-align: top; }
+/* A missing item can't be packed yet — show its checkbox as locked-out. */
+.sp-gear__check input:disabled { cursor: not-allowed; opacity: .4; }
+.sp-gear tr.is-missing td { background: var(--t10-surface-3); }
 /* When an item carries a recommendation, its picks render in the next row; drop
    the divider between them so the item + suggestions read as one block. */
 .sp-gear tr.has-suggest td { border-bottom: none; }
