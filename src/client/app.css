@@ -333,6 +333,26 @@
 .sp-suggest__add:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
 .sp-suggest__done { margin-left: auto; color: var(--t10-pine); font-size: var(--t10-fs-xs); white-space: nowrap; }
 
+/* ---------- recommended gear: need cards (picks shown inline on the list) ---------- */
+.sp-recneed {
+  padding: var(--t10-s3) var(--t10-s4);
+  border: 1px solid var(--t10-line-soft); border-radius: var(--t10-r);
+  background: var(--t10-surface); margin-bottom: var(--t10-s3);
+}
+.sp-recneed__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sp-recneed__name { font-size: var(--t10-fs-md); font-weight: 600; color: var(--t10-ink); }
+.sp-recneed__spacer { flex: 1 1 auto; }
+.sp-recneed__how { margin: 2px 0 0; }
+.sp-recneed__picks { list-style: none; margin: var(--t10-s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sp-recneed__pick {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px;
+  padding: 4px 8px; border-left: 2px solid var(--t10-line);
+  font-size: var(--t10-fs-sm);
+}
+.sp-recneed__pickname { color: var(--t10-ink); font-weight: 500; }
+.sp-recneed__price { color: var(--t10-pine); font-size: var(--t10-fs-xs); }
+.sp-recneed__why { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); flex: 1 1 10rem; min-width: 0; }
+
 /* ---------- recommended gear: leader catalog editor ---------- */
 .sp-rec__archived { opacity: .8; }
 .sp-rec__archlist { margin: 0; padding-left: var(--t10-s5); color: var(--t10-ink-soft); font-size: var(--t10-fs-sm); }

@@ -222,30 +222,37 @@ export function RecommendedGear() {
         cats.map((cat) => (
           <section key={cat} className="sp-cat">
             <h2 className="sp-cat__head">{cat}</h2>
-            <div className="sp-gearwrap">
-              <table className="sp-gear">
-                <thead>
-                  <tr>
-                    <th className="sp-gear__name">Need</th>
-                    <th className="is-right">Options</th>
-                    <th className="is-right">From</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(byCat.get(cat) ?? []).map((b) => (
-                    <tr key={b.set.id}>
-                      <td className="sp-gear__name">{b.set.name}</td>
-                      <td className="is-right t10-num">{b.picks.length}</td>
-                      <td className="is-right t10-num">{fmtPrice(setPriceFrom(b))}</td>
-                      <td className="is-right">
-                        <Button size="sm" onClick={() => setDraft(toSetDraft(b))}>Edit</Button>
-                      </td>
-                    </tr>
+            {(byCat.get(cat) ?? []).map((b) => (
+              <div key={b.set.id} className="sp-recneed">
+                <div className="sp-recneed__head">
+                  <span className="sp-recneed__name">{b.set.name}</span>
+                  <span className="t10-sub">
+                    {b.picks.length} option{b.picks.length === 1 ? "" : "s"}
+                    {setPriceFrom(b) != null && ` · from ${fmtPrice(setPriceFrom(b))}`}
+                  </span>
+                  <span className="sp-recneed__spacer" />
+                  <Button size="sm" onClick={() => setDraft(toSetDraft(b))}>Edit</Button>
+                </div>
+                {b.set.description && <p className="sp-recneed__how t10-sub">{b.set.description}</p>}
+                <ul className="sp-recneed__picks">
+                  {b.picks.map((p) => (
+                    <li key={p.gear.id} className="sp-recneed__pick">
+                      {p.gear.pick_label && (
+                        <span className="sp-recbrowse__tag">{p.gear.pick_label}</span>
+                      )}
+                      <span className="sp-recneed__pickname">{p.gear.name}</span>
+                      {p.gear.brand && <span className="t10-sub">· {p.gear.brand}</span>}
+                      {priceFrom(p) != null && (
+                        <span className="sp-recneed__price t10-num">from {fmtPrice(priceFrom(p))}</span>
+                      )}
+                      {p.gear.rationale && (
+                        <span className="sp-recneed__why">{p.gear.rationale}</span>
+                      )}
+                    </li>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </ul>
+              </div>
+            ))}
           </section>
         ))
       )}
@@ -261,24 +268,29 @@ export function RecommendedGear() {
         </section>
       )}
 
-      <SetEditorDrawer
-        draft={draft}
-        saving={saving}
-        onClose={() => setDraft(null)}
-        onChange={setDraft}
-        onEditPick={editPick}
-        onEditOption={editOption}
-        onSave={save}
-        onArchive={archive}
-      />
-      <CsvImportDrawer
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => {
-          setImportOpen(false);
-          load();
-        }}
-      />
+      {/* Mount drawers only while open — the kit Drawer force-mounts Radix's
+          RemoveScroll, which keeps the page scroll-locked even when closed. */}
+      {draft !== null && (
+        <SetEditorDrawer
+          draft={draft}
+          saving={saving}
+          onClose={() => setDraft(null)}
+          onChange={setDraft}
+          onEditPick={editPick}
+          onEditOption={editOption}
+          onSave={save}
+          onArchive={archive}
+        />
+      )}
+      {importOpen && (
+        <CsvImportDrawer
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            setImportOpen(false);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -478,11 +490,9 @@ Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm dow
 Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI Co-op,765,Premium down that holds up for years,"REI|329|https://www.rei.com/z"`;
 
 function CsvImportDrawer({
-  open,
   onClose,
   onImported,
 }: {
-  open: boolean;
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -547,7 +557,7 @@ function CsvImportDrawer({
 
   return (
     <Drawer
-      open={open}
+      open
       onClose={() => {
         onClose();
         reset();

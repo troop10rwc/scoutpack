@@ -362,14 +362,17 @@ export function Closet({ scout }: { scout: Scout }) {
         />
       </div>
 
-      <RecommendedDrawer
-        open={browseOpen}
-        onClose={() => setBrowseOpen(false)}
-        catalog={catalog}
-        scoutName={scout.display_name}
-        wishlistedIds={wishlistedIds}
-        onWishlist={wishlistGear}
-      />
+      {/* Mount only while open — the kit Drawer force-mounts Radix's RemoveScroll,
+          which keeps the page scroll-locked even when the drawer is closed. */}
+      {browseOpen && (
+        <RecommendedDrawer
+          onClose={() => setBrowseOpen(false)}
+          catalog={catalog}
+          scoutName={scout.display_name}
+          wishlistedIds={wishlistedIds}
+          onWishlist={wishlistGear}
+        />
+      )}
     </div>
   );
 }
@@ -377,14 +380,12 @@ export function Closet({ scout }: { scout: Scout }) {
 // Browse-the-catalog drawer opened from the closet headstrip. Scouts add items to
 // their wishlist (parents buy them) rather than straight into the closet.
 function RecommendedDrawer({
-  open,
   onClose,
   catalog,
   scoutName,
   wishlistedIds,
   onWishlist,
 }: {
-  open: boolean;
   onClose: () => void;
   catalog: RecommendationSetBundle[] | null;
   scoutName: string;
@@ -401,7 +402,7 @@ function RecommendedDrawer({
 
   return (
     <Drawer
-      open={open}
+      open
       onClose={onClose}
       title="Recommended gear"
       subtitle={`Add to ${scoutName}’s wishlist`}
