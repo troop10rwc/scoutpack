@@ -268,29 +268,24 @@ export function RecommendedGear() {
         </section>
       )}
 
-      {/* Mount drawers only while open — the kit Drawer force-mounts Radix's
-          RemoveScroll, which keeps the page scroll-locked even when closed. */}
-      {draft !== null && (
-        <SetEditorDrawer
-          draft={draft}
-          saving={saving}
-          onClose={() => setDraft(null)}
-          onChange={setDraft}
-          onEditPick={editPick}
-          onEditOption={editOption}
-          onSave={save}
-          onArchive={archive}
-        />
-      )}
-      {importOpen && (
-        <CsvImportDrawer
-          onClose={() => setImportOpen(false)}
-          onImported={() => {
-            setImportOpen(false);
-            load();
-          }}
-        />
-      )}
+      <SetEditorDrawer
+        draft={draft}
+        saving={saving}
+        onClose={() => setDraft(null)}
+        onChange={setDraft}
+        onEditPick={editPick}
+        onEditOption={editOption}
+        onSave={save}
+        onArchive={archive}
+      />
+      <CsvImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          load();
+        }}
+      />
     </div>
   );
 }
@@ -490,9 +485,11 @@ Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm dow
 Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI Co-op,765,Premium down that holds up for years,"REI|329|https://www.rei.com/z"`;
 
 function CsvImportDrawer({
+  open,
   onClose,
   onImported,
 }: {
+  open: boolean;
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -557,7 +554,7 @@ function CsvImportDrawer({
 
   return (
     <Drawer
-      open
+      open={open}
       onClose={() => {
         onClose();
         reset();
