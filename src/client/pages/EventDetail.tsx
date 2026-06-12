@@ -517,9 +517,15 @@ function PackRow({
       onCommit={(v) => onPatch({ name: v.trim() || item.name })}
     />
   );
+  // On a missing row, surface the leader-suggested picks so the scout can choose
+  // one. Rendered as its own full-width row below the item (see below) so each
+  // pick has the whole table width and stays on a single line.
+  const showSuggest =
+    !item.owned && !!item.recommendation && item.recommendation.picks.length > 0;
   return (
+    <>
     <tr
-      className={`${item.owned ? "" : "is-missing"}${dragOver ? " is-dragover" : ""}${gearTarget ? " is-geartarget" : ""}`}
+      className={`${item.owned ? "" : "is-missing"}${showSuggest ? " has-suggest" : ""}${dragOver ? " is-dragover" : ""}${gearTarget ? " is-geartarget" : ""}`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={onDragEnter}
       onDrop={
@@ -573,48 +579,6 @@ function PackRow({
         ) : (
           nameInput
         )}
-        {/* On a missing row, surface the leader-suggested picks; scout chooses one. */}
-        {!item.owned && item.recommendation && item.recommendation.picks.length > 0 && (
-          <div className="sp-suggest">
-            <div className="sp-suggest__head">
-              Recommended: <span className="sp-suggest__set">{item.recommendation.set.name}</span>
-              {item.recommendation.set.description && (
-                <span className="sp-suggest__hint"> — {item.recommendation.set.description}</span>
-              )}
-            </div>
-            <ul className="sp-suggest__picks">
-              {item.recommendation.picks.map((p) => {
-                const price = priceFrom(p);
-                const added = wishlistedIds.has(p.gear.id);
-                return (
-                  <li key={p.gear.id} className="sp-suggest__pick">
-                    {p.gear.pick_label && (
-                      <span className="sp-suggest__tag">{p.gear.pick_label}</span>
-                    )}
-                    <span className="sp-suggest__name">{p.gear.name}</span>
-                    {price != null && (
-                      <span className="sp-suggest__price t10-num">from {fmtPrice(price)}</span>
-                    )}
-                    {p.gear.rationale && (
-                      <span className="sp-suggest__why">{p.gear.rationale}</span>
-                    )}
-                    {added ? (
-                      <span className="sp-suggest__done">✓ On wishlist</span>
-                    ) : (
-                      <button
-                        className="sp-suggest__add"
-                        onClick={() => onWishlist(p.gear.id)}
-                        title={`Add ${p.gear.name} to wishlist`}
-                      >
-                        + Wishlist
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
       </td>
       <td className="sp-gear__desc">
         {/* Read-only: the description follows the linked closet item, not the row. */}
@@ -665,6 +629,52 @@ function PackRow({
         <button className="sp-iconbtn sp-iconbtn--del" onClick={onRemove} title="Remove item">×</button>
       </td>
     </tr>
+    {showSuggest && item.recommendation && (
+      <tr className="is-missing sp-suggest-row">
+        <td colSpan={8}>
+          <div className="sp-suggest">
+            <div className="sp-suggest__head">
+              Recommended: <span className="sp-suggest__set">{item.recommendation.set.name}</span>
+              {item.recommendation.set.description && (
+                <span className="sp-suggest__hint"> — {item.recommendation.set.description}</span>
+              )}
+            </div>
+            <ul className="sp-suggest__picks">
+              {item.recommendation.picks.map((p) => {
+                const price = priceFrom(p);
+                const added = wishlistedIds.has(p.gear.id);
+                return (
+                  <li key={p.gear.id} className="sp-suggest__pick">
+                    {p.gear.pick_label && (
+                      <span className="sp-suggest__tag">{p.gear.pick_label}</span>
+                    )}
+                    <span className="sp-suggest__name">{p.gear.name}</span>
+                    {price != null && (
+                      <span className="sp-suggest__price t10-num">from {fmtPrice(price)}</span>
+                    )}
+                    {p.gear.rationale && (
+                      <span className="sp-suggest__why">{p.gear.rationale}</span>
+                    )}
+                    {added ? (
+                      <span className="sp-suggest__done">✓ On wishlist</span>
+                    ) : (
+                      <button
+                        className="sp-suggest__add"
+                        onClick={() => onWishlist(p.gear.id)}
+                        title={`Add ${p.gear.name} to wishlist`}
+                      >
+                        + Wishlist
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

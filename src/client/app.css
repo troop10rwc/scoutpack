@@ -90,7 +90,11 @@
 /* Packing list: packed checkbox column + "missing from closet" row tint. */
 .sp-gear__check { width: 2rem; text-align: center; }
 .sp-gear__check input { accent-color: var(--t10-clay); cursor: pointer; }
-.sp-gear tr.is-missing td { background: var(--t10-clay-tint); }
+.sp-gear tr.is-missing td { background: var(--t10-surface-3); vertical-align: top; }
+/* When an item carries a recommendation, its picks render in the next row; drop
+   the divider between them so the item + suggestions read as one block. */
+.sp-gear tr.has-suggest td { border-bottom: none; }
+.sp-gear tr.sp-suggest-row td { padding-top: 0; }
 .sp-gear__grip { width: 1.2rem; padding-right: 0; }
 .sp-gear__del { width: 2rem; text-align: right; }
 .sp-gear__acts { white-space: nowrap; }
