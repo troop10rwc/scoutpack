@@ -287,6 +287,16 @@
 .sp-linkbadge svg { width: 13px; height: 13px; }
 .sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }
 
+/* The kit's Drawer force-mounts its Radix scrim + panel so they can animate
+   open/closed. But Radix stamps an inline `pointer-events: auto` on the overlay
+   even while it's closed, which defeats the kit's own
+   `.t10-scrim { pointer-events: none }` and leaves an invisible, full-content
+   overlay that swallows every click on the page. Restore the closed state's
+   intent (!important to beat Radix's inline style); the panel gets the same
+   treatment as a belt-and-suspenders since it sits off-screen when closed. */
+.t10-scrim:not(.t10-scrim--show) { pointer-events: none !important; }
+.t10-drawer:not(.t10-drawer--open) { pointer-events: none !important; }
+
 /* ---------- recommended gear: suggestion line on a missing packing row ---------- */
 .sp-suggest {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
