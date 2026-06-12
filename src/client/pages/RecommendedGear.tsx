@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button,
   ChangesetReview,
@@ -79,6 +79,26 @@ function buildExportCsv(sets: RecommendationSetBundle[]): string {
   return lines.join("\n");
 }
 
+// Prepended to the CSV for the "copy for an AI agent" export, so an agent can
+// analyze or edit the catalog and hand back an importable CSV. The importer
+// skips this preamble (it scans for the header row).
+const EXPORT_LLM_PREAMBLE = `Below is our Scouts BSA troop's recommended-gear catalog as CSV (one row per product). Help me with it, then return the full updated CSV so I can re-import it.
+
+Column meaning:
+- set_id / product_id: stable ids. KEEP them unchanged on any row you edit — our importer uses them to update those exact items in place, even if you rename them. Leave BOTH blank on any new product you add.
+- set: the gear need (e.g. "Backpacking sleeping bag"); rows sharing a set are alternatives for it.
+- category, product, label ("best for" tag), brand, weight_g (grams), rationale (one-line why).
+- min_price: derived, ignored on import — ignore or recompute it.
+- buy_options: "vendor|price|url|note" entries separated by ";" (price in dollars; url/note optional).
+
+When you reply, output ONLY the updated CSV — same columns, header row included, no commentary or code fences — so I can paste it straight back into the importer.
+
+CSV:`;
+
+function buildLlmExport(sets: RecommendationSetBundle[]): string {
+  return `${EXPORT_LLM_PREAMBLE}\n${buildExportCsv(sets)}`;
+}
+
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -157,6 +177,78 @@ function toSetDraft(b: RecommendationSetBundle): SetDraft {
   };
 }
 
+// "Export CSV" split button: primary action downloads; the ▾ opens a menu with
+// download / copy / copy-for-an-AI-agent. Mirrors the docs "Copy page" control.
+function ExportMenu({
+  disabled,
+  onDownload,
+  onCopy,
+  onCopyLlm,
+}: {
+  disabled: boolean;
+  onDownload: () => void;
+  onCopy: () => Promise<void>;
+  onCopyLlm: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  async function copy(label: string, fn: () => Promise<void>) {
+    setOpen(false);
+    try {
+      await fn();
+      setFlash(label);
+      setTimeout(() => setFlash((f) => (f === label ? null : f)), 2000);
+    } catch {
+      setFlash("Clipboard blocked");
+      setTimeout(() => setFlash((f) => (f === "Clipboard blocked" ? null : f)), 2500);
+    }
+  }
+
+  return (
+    <div className="sp-split" ref={ref}>
+      {flash && <span className="sp-split__flash">{flash}</span>}
+      <Button onClick={onDownload} disabled={disabled}>Export CSV</Button>
+      <button
+        type="button"
+        className="sp-split__toggle"
+        disabled={disabled}
+        aria-label="More export options"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        ▾
+      </button>
+      {open && (
+        <ul className="sp-split__menu" role="menu">
+          <li role="menuitem" onClick={() => { setOpen(false); onDownload(); }}>
+            <span className="sp-split__title">Download .csv</span>
+            <span className="sp-split__sub">Save a file for spreadsheets or re-import</span>
+          </li>
+          <li role="menuitem" onClick={() => copy("Copied CSV", onCopy)}>
+            <span className="sp-split__title">Copy to clipboard</span>
+            <span className="sp-split__sub">The raw CSV text</span>
+          </li>
+          <li role="menuitem" onClick={() => copy("Copied for AI", onCopyLlm)}>
+            <span className="sp-split__title">Copy for an AI agent</span>
+            <span className="sp-split__sub">CSV with a prompt to analyze or edit it</span>
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function RecommendedGear() {
   const [sets, setSets] = useState<RecommendationSetBundle[] | null>(null);
   const [draft, setDraft] = useState<SetDraft | null>(null);
@@ -165,15 +257,22 @@ export function RecommendedGear() {
   const [saving, setSaving] = useState(false);
 
   const active = (sets ?? []).filter((b) => b.set.is_active);
+  // Keep the latest catalog in a ref so the headstrip export handlers (published
+  // via an effect) always serialize current data, not a stale closure.
+  const setsRef = useRef<RecommendationSetBundle[]>([]);
+  setsRef.current = active;
   usePageChrome(
     {
       title: "Recommended Gear",
       subtitle: `${active.length} need${active.length === 1 ? "" : "s"}`,
       actions: (
         <>
-          <Button onClick={() => downloadCsv("recommended-gear.csv", buildExportCsv(active))} disabled={!active.length}>
-            Export CSV
-          </Button>
+          <ExportMenu
+            disabled={!active.length}
+            onDownload={() => downloadCsv("recommended-gear.csv", buildExportCsv(setsRef.current))}
+            onCopy={() => navigator.clipboard.writeText(buildExportCsv(setsRef.current))}
+            onCopyLlm={() => navigator.clipboard.writeText(buildLlmExport(setsRef.current))}
+          />
           <Button onClick={() => setImportOpen(true)}>Import CSV</Button>
           <Button variant="primary" onClick={() => setDraft(blankSet())}>+ New need</Button>
         </>
@@ -511,9 +610,9 @@ function SetEditorDrawer({
   );
 }
 
-const CSV_PLACEHOLDER = `set,category,product,label,brand,weight_g,rationale,buy_options
-Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm and affordable but heavier,"REI|159.95|https://rei.com/x; Amazon|149|https://amzn.to/y"
-Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI,765,Premium down holds up for years,"REI|329|https://rei.com/z"`;
+const CSV_PLACEHOLDER = `set_id,set,category,product_id,product,label,brand,weight_g,rationale,buy_options
+,Backpacking sleeping bag,Sleep System,,Kelty Cosmic 20,Budget,Kelty,1560,Warm and affordable but heavier,"REI|159.95|https://rei.com/x; Amazon|149|https://amzn.to/y"
+,Backpacking sleeping bag,Sleep System,,REI Magma 30,Most durable,REI,765,Premium down holds up for years,"REI|329|https://rei.com/z"`;
 
 // A self-contained prompt a leader can paste into any AI agent to generate a CSV
 // in exactly the shape this importer expects. The agent returns the CSV, which
@@ -522,9 +621,10 @@ const LLM_PROMPT = `You are helping a Scouts BSA troop build a catalog of recomm
 
 Output ONLY the CSV — no commentary, no markdown, no code fences. Use this exact header row, then one row per product:
 
-set,category,product,label,brand,weight_g,rationale,buy_options
+set_id,set,category,product_id,product,label,brand,weight_g,rationale,buy_options
 
 Column rules:
+- set_id / product_id: leave BOTH blank — these are only used to update existing items (you'd paste ids from an export). For generating new gear, keep them empty.
 - set: the gear NEED (the generic item a scout must bring, e.g. "Backpacking sleeping bag"). Repeat it across that need's picks — rows sharing a set are grouped as alternatives.
 - category: a gear category (e.g. Sleep System, Hiking Gear, Clothing, Camp, Mess Kit, Personal).
 - product: a specific, real, currently-available product (brand + model).
@@ -541,9 +641,9 @@ Guidance:
 Cover these gear needs: <REPLACE WITH YOUR LIST, e.g. backpacking sleeping bag, sleeping pad, backpack, headlamp, water filter, backpacking stove>
 
 Example of the exact format:
-set,category,product,label,brand,weight_g,rationale,buy_options
-Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm down bag at a low price,"REI|159.95|https://www.rei.com/x; Amazon|149|https://www.amazon.com/y"
-Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI Co-op,765,Premium down that holds up for years,"REI|329|https://www.rei.com/z"`;
+set_id,set,category,product_id,product,label,brand,weight_g,rationale,buy_options
+,Backpacking sleeping bag,Sleep System,,Kelty Cosmic 20,Budget,Kelty,1560,Warm down bag at a low price,"REI|159.95|https://www.rei.com/x; Amazon|149|https://www.amazon.com/y"
+,Backpacking sleeping bag,Sleep System,,REI Magma 30,Most durable,REI Co-op,765,Premium down that holds up for years,"REI|329|https://www.rei.com/z"`;
 
 function CsvImportDrawer({
   open,

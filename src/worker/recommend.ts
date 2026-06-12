@@ -442,15 +442,23 @@ export class CsvError extends Error {}
 // / `product_id` columns (present in exported CSVs) let a re-import update the
 // exact rows even when names changed; without them we fall back to name slugs.
 export function parseRecommendationCsv(text: string): ParsedCsvSet[] {
-  const rows = parseCsvRows(text).filter((r) => r.some((c) => c.trim()));
+  const allRows = parseCsvRows(text).filter((r) => r.some((c) => c.trim()));
+  // Tolerate a prose/prompt preamble above the CSV (e.g. the "copy for an AI
+  // agent" export): the header is the first row that has both `set` and
+  // `product` cells; anything before it is ignored.
+  const headerIdx = allRows.findIndex((r) => {
+    const cells = r.map((c) => c.trim().toLowerCase());
+    return cells.includes("set") && cells.includes("product");
+  });
+  if (headerIdx < 0) {
+    throw new CsvError("Couldn't find a header row with `set` and `product` columns.");
+  }
+  const rows = allRows.slice(headerIdx);
   if (rows.length < 2) throw new CsvError("Need a header row and at least one data row.");
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const col = (name: string) => header.indexOf(name);
   const iSet = col("set");
   const iProduct = col("product");
-  if (iSet < 0 || iProduct < 0) {
-    throw new CsvError("Header must include at least `set` and `product` columns.");
-  }
   const iSetId = col("set_id");
   const iProductId = col("product_id");
   const iCat = col("category");

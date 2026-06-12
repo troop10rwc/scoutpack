@@ -333,6 +333,39 @@
 .sp-suggest__add:hover { border-color: var(--t10-pine); background: var(--t10-pine-tint); }
 .sp-suggest__done { margin-left: auto; color: var(--t10-pine); font-size: var(--t10-fs-xs); white-space: nowrap; }
 
+/* ---------- Export split button (primary action + ▾ dropdown) ---------- */
+.sp-split { position: relative; display: inline-flex; align-items: stretch; }
+.sp-split > .t10-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.sp-split__toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 9px; font-size: 10px; line-height: 1;
+  border: 1px solid var(--t10-line); border-left: none; background: var(--t10-surface);
+  color: var(--t10-ink); cursor: pointer;
+  border-top-right-radius: var(--t10-r-sm); border-bottom-right-radius: var(--t10-r-sm);
+}
+.sp-split__toggle:hover { background: var(--t10-surface-3); }
+.sp-split__toggle:disabled { opacity: .5; cursor: not-allowed; }
+.sp-split__flash {
+  position: absolute; right: 0; bottom: calc(100% + 4px); white-space: nowrap;
+  font-size: var(--t10-fs-xs); color: var(--t10-pine);
+  background: var(--t10-surface); border: 1px solid var(--t10-line-soft);
+  padding: 1px 7px; border-radius: var(--t10-r-sm);
+}
+.sp-split__menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 60;
+  list-style: none; margin: 0; padding: 4px; min-width: 250px;
+  background: var(--t10-surface); border: 1px solid var(--t10-line);
+  border-radius: var(--t10-r); box-shadow: var(--t10-shadow-lg);
+  text-align: left;
+}
+.sp-split__menu li {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 9px; border-radius: var(--t10-r-sm); cursor: pointer;
+}
+.sp-split__menu li:hover { background: var(--t10-surface-3); }
+.sp-split__title { font-size: var(--t10-fs-sm); font-weight: 600; color: var(--t10-ink); }
+.sp-split__sub { font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
+
 /* ---------- recommended gear: need cards (picks shown inline on the list) ---------- */
 .sp-recneed {
   padding: var(--t10-s3) var(--t10-s4);
