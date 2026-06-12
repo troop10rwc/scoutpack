@@ -237,10 +237,10 @@ export function RecommendedGear() {
                 <ul className="sp-recneed__picks">
                   {b.picks.map((p) => (
                     <li key={p.gear.id} className="sp-recneed__pick">
+                      <span className="sp-recneed__pickname">{p.gear.name}</span>
                       {p.gear.pick_label && (
                         <span className="sp-recbrowse__tag">{p.gear.pick_label}</span>
                       )}
-                      <span className="sp-recneed__pickname">{p.gear.name}</span>
                       {p.gear.brand && <span className="t10-sub">· {p.gear.brand}</span>}
                       {priceFrom(p) != null && (
                         <span className="sp-recneed__price t10-num">from {fmtPrice(priceFrom(p))}</span>
