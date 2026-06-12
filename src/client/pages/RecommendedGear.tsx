@@ -397,16 +397,36 @@ export function RecommendedGear() {
                 <ul className="sp-recneed__picks">
                   {b.picks.map((p) => (
                     <li key={p.gear.id} className="sp-recneed__pick">
-                      <span className="sp-recneed__pickname">{p.gear.name}</span>
-                      {p.gear.pick_label && (
-                        <span className="sp-recbrowse__tag">{p.gear.pick_label}</span>
-                      )}
-                      {p.gear.brand && <span className="t10-sub">· {p.gear.brand}</span>}
-                      {priceFrom(p) != null && (
-                        <span className="sp-recneed__price t10-num">from {fmtPrice(priceFrom(p))}</span>
-                      )}
-                      {p.gear.rationale && (
-                        <span className="sp-recneed__why">{p.gear.rationale}</span>
+                      <div className="sp-recneed__pickline">
+                        <span className="sp-recneed__pickname">{p.gear.name}</span>
+                        {p.gear.pick_label && (
+                          <span className="sp-recbrowse__tag">{p.gear.pick_label}</span>
+                        )}
+                        {p.gear.brand && <span className="t10-sub">· {p.gear.brand}</span>}
+                        {p.gear.rationale && (
+                          <span className="sp-recneed__why">{p.gear.rationale}</span>
+                        )}
+                      </div>
+                      {p.options.length > 0 && (
+                        <ul className="sp-recneed__opts">
+                          {p.options.map((o) => (
+                            <li key={o.id} className="sp-recneed__opt">
+                              <span className="sp-recneed__vendor">{o.vendor}</span>
+                              <span className="sp-recneed__oprice t10-num">{fmtPrice(o.price_cents)}</span>
+                              {o.note && <span className="t10-sub">{o.note}</span>}
+                              {o.url && (
+                                <a
+                                  href={o.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="sp-recneed__buy"
+                                >
+                                  ↗
+                                </a>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </li>
                   ))}

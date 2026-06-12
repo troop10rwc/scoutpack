@@ -376,14 +376,18 @@
 .sp-recneed__name { font-size: var(--t10-fs-md); font-weight: 600; color: var(--t10-ink); }
 .sp-recneed__spacer { flex: 1 1 auto; }
 .sp-recneed__how { margin: 2px 0 0; }
-.sp-recneed__picks { list-style: none; margin: var(--t10-s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.sp-recneed__pick {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px;
-  padding: 4px 8px; font-size: var(--t10-fs-sm);
-}
+.sp-recneed__picks { list-style: none; margin: var(--t10-s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--t10-s3); }
+.sp-recneed__pick { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; font-size: var(--t10-fs-sm); }
+.sp-recneed__pickline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 .sp-recneed__pickname { color: var(--t10-ink); font-weight: 500; }
-.sp-recneed__price { color: var(--t10-pine); font-size: var(--t10-fs-xs); }
 .sp-recneed__why { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); flex: 1 1 10rem; min-width: 0; }
+/* Buy options listed beneath each product option. */
+.sp-recneed__opts { list-style: none; margin: 1px 0 0 var(--t10-s5); padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.sp-recneed__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
+.sp-recneed__vendor { color: var(--t10-ink); min-width: 7rem; }
+.sp-recneed__oprice { color: var(--t10-pine); }
+.sp-recneed__buy { color: var(--t10-pine); text-decoration: none; }
+.sp-recneed__buy:hover { text-decoration: underline; }
 
 /* ---------- recommended gear: leader catalog editor ---------- */
 .sp-rec__archived { opacity: .8; }
