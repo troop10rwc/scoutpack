@@ -13,7 +13,7 @@ import {
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { EVENT_TYPES, EVENT_TYPE_LABELS, type EventType } from "../../shared/constants.ts";
-import type { RecommendedGearBundle, TemplateBundle, TemplateItem } from "../../shared/types.ts";
+import type { RecommendationSetBundle, TemplateBundle, TemplateItem } from "../../shared/types.ts";
 
 type DraftItem = Omit<TemplateItem, "id" | "template_id" | "match_key">;
 // Drafts have no server id; carry a stable client key for selection + edit-in-place.
@@ -29,8 +29,8 @@ export function Templates() {
   const [sel, setSel] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // Recommended-gear catalog, for the "Suggested product" column.
-  const [catalog, setCatalog] = useState<RecommendedGearBundle[]>([]);
+  // Recommendation sets, for the "Suggested" column.
+  const [catalog, setCatalog] = useState<RecommendationSetBundle[]>([]);
 
   usePageChrome(
     { title: "Templates", subtitle: `${EVENT_TYPE_LABELS[eventType]} · ${rows.length} items` },
@@ -38,7 +38,7 @@ export function Templates() {
   );
 
   useEffect(() => {
-    api.listRecommended().then(setCatalog).catch(() => setCatalog([]));
+    api.listRecommendationSets().then(setCatalog).catch(() => setCatalog([]));
   }, []);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export function Templates() {
           case "default_qty": return { ...r, default_qty: Number(value) || 1 };
           case "is_worn": return { ...r, is_worn: Number(value) ? 1 : 0 };
           case "is_consumable": return { ...r, is_consumable: Number(value) ? 1 : 0 };
-          case "recommended_gear_id": return { ...r, recommended_gear_id: String(value) || null };
+          case "recommendation_set_id": return { ...r, recommendation_set_id: String(value) || null };
           default: return r;
         }
       }),
@@ -84,7 +84,7 @@ export function Templates() {
         default_qty: 1,
         is_worn: 0,
         is_consumable: 0,
-        recommended_gear_id: null,
+        recommendation_set_id: null,
         sort_order: (curr[curr.length - 1]?.sort_order ?? 0) + 10,
       },
     ]);
@@ -109,7 +109,7 @@ export function Templates() {
           default_qty: it.default_qty,
           is_worn: !!it.is_worn,
           is_consumable: !!it.is_consumable,
-          recommended_gear_id: it.recommended_gear_id ?? null,
+          recommendation_set_id: it.recommendation_set_id ?? null,
           sort_order: it.sort_order ?? idx * 10,
         }));
       // The backend ignores id/template_id/match_key when creating; send the
@@ -133,11 +133,11 @@ export function Templates() {
     { value: "1", label: "Yes" },
     { value: "0", label: "No" },
   ];
-  // Catalog → select options; "" is the explicit "no suggestion" choice.
-  const gearName = new Map(catalog.map((b) => [b.gear.id, b.gear.name]));
-  const gearOptions = [
+  // Sets → select options; "" is the explicit "no suggestion" choice.
+  const setNameById = new Map(catalog.map((b) => [b.set.id, b.set.name]));
+  const setOptions = [
     { value: "", label: "— none —" },
-    ...catalog.map((b) => ({ value: b.gear.id, label: b.gear.name })),
+    ...catalog.map((b) => ({ value: b.set.id, label: b.set.name })),
   ];
   const columns: Column<Row>[] = [
     { key: "name", header: "Name", editor: "text", value: (r) => r.name,
@@ -149,11 +149,11 @@ export function Templates() {
       render: (r) => (r.is_worn ? statusCell("Worn", "neutral") : <span className="t10-sub">—</span>) },
     { key: "is_consumable", header: "Consumable", editor: "select", value: (r) => String(r.is_consumable), options: yesNo,
       render: (r) => (r.is_consumable ? statusCell("Consumable", "neutral") : <span className="t10-sub">—</span>) },
-    { key: "recommended_gear_id", header: "Suggested product", editor: "select",
-      value: (r) => r.recommended_gear_id ?? "", options: gearOptions,
+    { key: "recommendation_set_id", header: "Suggested", editor: "select",
+      value: (r) => r.recommendation_set_id ?? "", options: setOptions,
       render: (r) =>
-        r.recommended_gear_id
-          ? <span>{gearName.get(r.recommended_gear_id) ?? "linked"}</span>
+        r.recommendation_set_id
+          ? <span>{setNameById.get(r.recommendation_set_id) ?? "linked"}</span>
           : <span className="t10-sub">—</span> },
   ];
 

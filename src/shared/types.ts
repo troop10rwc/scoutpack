@@ -123,15 +123,35 @@ export interface ImportPreviewItem {
 
 // ---------- recommended gear (leader-curated catalog) ----------
 
-// One product in the recommended-gear catalog. `is_active` soft-archives a row
-// without breaking template / packing / wishlist references to its id.
+// A "set" is one gear need (e.g. "Backpacking sleeping bag") that groups 1-3
+// product picks. `is_active` soft-archives without breaking template/packing
+// references to its id. Template lines link to a set; the scout picks one of its
+// products. A 1-pick set behaves like the old single-product recommendation.
+export interface RecommendationSet {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null; // "how to choose" guidance
+  match_key: string;
+  is_active: 0 | 1;
+  sort_order: number;
+  updated_by: string;
+  updated_at: string;
+  created_at: string;
+}
+
+// One product "pick" inside a set. `pick_label` is the "best for" tag (Budget /
+// Most durable / Lightweight); `rationale` is the one-line why.
 export interface RecommendedGear {
   id: string;
+  set_id: string | null;
   name: string;
   category: string;
   description: string | null;
   brand: string | null;
   weight_grams: number | null;
+  pick_label: string | null;
+  rationale: string | null;
   match_key: string;
   is_active: 0 | 1;
   sort_order: number;
@@ -152,10 +172,18 @@ export interface RecommendedGearOption {
   sort_order: number;
 }
 
-// A catalog item plus its buy options — the shape the UI works with.
+// One pick (product) with its buy options — the shape the UI works with.
 export interface RecommendedGearBundle {
   gear: RecommendedGear;
   options: RecommendedGearOption[];
+}
+
+// A set plus its product picks (each pick carries its own buy options). This is
+// what a template line / packing row resolves to, and what the catalog editor
+// edits as a unit.
+export interface RecommendationSetBundle {
+  set: RecommendationSet;
+  picks: RecommendedGearBundle[];
 }
 
 // One scout's wishlist row: a snapshot of the chosen gear (so it survives the
@@ -170,6 +198,7 @@ export interface WishlistItem {
   description: string | null;
   brand: string | null;
   weight_grams: number | null;
+  pick_label: string | null;
   match_key: string;
   note: string | null;
   created_at: string;
@@ -195,9 +224,9 @@ export interface TemplateItem {
   is_worn: 0 | 1;
   is_consumable: 0 | 1;
   match_key: string;
-  // Explicit leader link to a recommended-gear catalog item (the "suggested
-  // product" for this generic line), or null.
-  recommended_gear_id: string | null;
+  // Explicit leader link to a recommendation set (the "suggested products" for
+  // this generic line — the scout picks one), or null.
+  recommendation_set_id: string | null;
   sort_order: number;
 }
 
@@ -225,19 +254,19 @@ export interface PackingListItem {
   is_consumable: 0 | 1;
   match_key: string;
   closet_item_id: string | null;
-  // Recommended-gear suggestion cloned from the template item, or null.
-  recommended_gear_id: string | null;
+  // Recommendation set suggestion cloned from the template item, or null.
+  recommendation_set_id: string | null;
   packed: 0 | 1;
   sort_order: number;
 }
 
 // A packing-list item enriched with its resolved closet ownership — the shape
 // the UI works with (and what the add/update endpoints return). For a "missing"
-// row, `recommendation` carries the suggested product + buy options (if linked).
+// row, `recommendation` carries the suggested set (its product picks + buy links).
 export type PackingItemView = PackingListItem & {
   owned: boolean;
   closet_item: ClosetItem | null;
-  recommendation: RecommendedGearBundle | null;
+  recommendation: RecommendationSetBundle | null;
 };
 
 export interface PackingListBundle {

@@ -7,7 +7,7 @@ import type {
   PackingItemView,
   PackingListBundle,
   Position,
-  RecommendedGearBundle,
+  RecommendationSetBundle,
   RosterMember,
   Scout,
   TemplateBundle,
@@ -176,24 +176,34 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // Recommended-gear catalog. listRecommended is readable by anyone; the
-  // create/update/archive mutations are leader-only (enforced server-side).
-  listRecommended: (includeArchived = false) =>
-    request<RecommendedGearBundle[]>(
-      `/recommended${includeArchived ? "?include_archived=1" : ""}`,
+  // Recommendation-set catalog. listRecommendationSets is readable by anyone; the
+  // create/update/archive/import mutations are leader-only (enforced server-side).
+  listRecommendationSets: (includeArchived = false) =>
+    request<RecommendationSetBundle[]>(
+      `/recommendation-sets${includeArchived ? "?include_archived=1" : ""}`,
     ),
-  createRecommended: (body: RecommendedGearInput) =>
-    request<RecommendedGearBundle>(`/recommended`, {
+  createRecommendationSet: (body: RecommendationSetInput) =>
+    request<RecommendationSetBundle>(`/recommendation-sets`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updateRecommended: (id: string, body: RecommendedGearInput) =>
-    request<RecommendedGearBundle>(`/recommended/${id}`, {
+  updateRecommendationSet: (id: string, body: RecommendationSetInput) =>
+    request<RecommendationSetBundle>(`/recommendation-sets/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  archiveRecommended: (id: string) =>
-    request<{ ok: boolean }>(`/recommended/${id}/archive`, { method: "POST" }),
+  archiveRecommendationSet: (id: string) =>
+    request<{ ok: boolean }>(`/recommendation-sets/${id}/archive`, { method: "POST" }),
+  previewRecommendationCsv: (csv: string) =>
+    request<CsvPreview>(`/recommendation-sets/import/preview`, {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    }),
+  importRecommendationCsv: (csv: string) =>
+    request<{ sets: number; picks: number }>(`/recommendation-sets/import`, {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    }),
 
   // Per-scout wishlist.
   listWishlist: (scoutId: string) => request<WishlistItem[]>(`/scouts/${scoutId}/wishlist`),
@@ -208,19 +218,38 @@ export const api = {
     request<ClosetItem>(`/scouts/${scoutId}/wishlist/${itemId}/fulfill`, { method: "POST" }),
 };
 
-// Catalog-item payload sent by the leader editor (id/match_key are server-owned).
-export interface RecommendedGearInput {
+// One buy option in the editor payload.
+export interface BuyOptionInput {
+  vendor: string;
+  price_cents?: number | null;
+  url?: string | null;
+  note?: string | null;
+}
+
+// One product pick in the set-editor payload. `id` present => update in place.
+export interface RecommendationPickInput {
+  id?: string;
+  name: string;
+  brand?: string | null;
+  weight_grams?: number | null;
+  pick_label?: string | null;
+  rationale?: string | null;
+  options: BuyOptionInput[];
+}
+
+// Recommendation-set payload sent by the leader editor (ids/match_key server-owned).
+export interface RecommendationSetInput {
   name: string;
   category: string;
   description?: string | null;
-  brand?: string | null;
-  weight_grams?: number | null;
-  options: Array<{
-    vendor: string;
-    price_cents?: number | null;
-    url?: string | null;
-    note?: string | null;
-  }>;
+  picks: RecommendationPickInput[];
+}
+
+// Result of the CSV preview: per-set add/update summary.
+export interface CsvPreview {
+  sets: Array<{ name: string; status: "new" | "update"; picks: number; newPicks: number }>;
+  setCount: number;
+  pickCount: number;
 }
 
 // Adding to a wishlist: a catalog reference, or a free-form item.

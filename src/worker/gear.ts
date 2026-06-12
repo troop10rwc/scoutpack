@@ -12,7 +12,7 @@ import type {
 } from "../shared/types.ts";
 import { matchKey } from "../shared/slug.ts";
 import { ImportError, lighterpackCsvUrl, parseLighterpackCsv } from "./lighterpack.ts";
-import { getRecommendedBundle, loadRecommendationsByIds } from "./recommend.ts";
+import { getRecommendationSetBundle, loadRecommendationSetsByIds } from "./recommend.ts";
 import type { EventType } from "../shared/constants.ts";
 
 // ---------- closet ----------
@@ -366,7 +366,7 @@ export interface TemplateInput {
     default_qty?: number;
     is_worn?: boolean;
     is_consumable?: boolean;
-    recommended_gear_id?: string | null;
+    recommendation_set_id?: string | null;
     sort_order?: number;
   }>;
 }
@@ -394,7 +394,7 @@ export async function publishTemplate(
       db.prepare(
         `INSERT INTO template_items
            (id, template_id, name, description, category, default_qty,
-            is_worn, is_consumable, match_key, recommended_gear_id, sort_order)
+            is_worn, is_consumable, match_key, recommendation_set_id, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         crypto.randomUUID(),
@@ -406,7 +406,7 @@ export async function publishTemplate(
         it.is_worn ? 1 : 0,
         it.is_consumable ? 1 : 0,
         matchKey(it.name),
-        it.recommended_gear_id ?? null,
+        it.recommendation_set_id ?? null,
         it.sort_order ?? idx * 10,
       ),
     );
@@ -457,7 +457,7 @@ export async function createPackingList(
       db.prepare(
         `INSERT INTO packing_list_items
            (id, packing_list_id, name, description, category, quantity,
-            is_worn, is_consumable, match_key, closet_item_id, recommended_gear_id, sort_order)
+            is_worn, is_consumable, match_key, closet_item_id, recommendation_set_id, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         crypto.randomUUID(),
@@ -470,7 +470,7 @@ export async function createPackingList(
         ti.is_consumable,
         ti.match_key,
         ownedByKey.get(ti.match_key) ?? null,
-        ti.recommended_gear_id ?? null,
+        ti.recommendation_set_id ?? null,
         ti.sort_order,
       ),
     );
@@ -511,10 +511,10 @@ export async function loadPackingListBundle(
     closetMap = new Map((closetRows ?? []).map((c) => [c.id, c]));
   }
 
-  // Suggested products linked on these rows (one batched lookup, no N+1).
-  const recMap = await loadRecommendationsByIds(
+  // Suggested sets linked on these rows (one batched lookup, no N+1).
+  const recMap = await loadRecommendationSetsByIds(
     db,
-    items.map((i) => i.recommended_gear_id).filter((x): x is string => !!x),
+    items.map((i) => i.recommendation_set_id).filter((x): x is string => !!x),
   );
 
   return {
@@ -524,7 +524,7 @@ export async function loadPackingListBundle(
       ...it,
       owned: it.closet_item_id !== null,
       closet_item: it.closet_item_id ? closetMap.get(it.closet_item_id) ?? null : null,
-      recommendation: it.recommended_gear_id ? recMap.get(it.recommended_gear_id) ?? null : null,
+      recommendation: it.recommendation_set_id ? recMap.get(it.recommendation_set_id) ?? null : null,
     })),
   };
 }
@@ -557,8 +557,8 @@ export async function loadPackingItem(
       .bind(it.closet_item_id)
       .first<ClosetItem>();
   }
-  const recommendation = it.recommended_gear_id
-    ? await getRecommendedBundle(db, it.recommended_gear_id)
+  const recommendation = it.recommendation_set_id
+    ? await getRecommendationSetBundle(db, it.recommendation_set_id)
     : null;
   return { ...it, owned: it.closet_item_id !== null, closet_item: closet, recommendation };
 }

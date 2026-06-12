@@ -276,12 +276,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
                       dragOver={dragOverId === it.id}
                       gearTarget={!it.owned && gearDragId !== null}
                       onGearDrop={() => linkGear(it.id)}
-                      wishlisted={
-                        it.recommendation ? wishlisted.has(it.recommendation.gear.id) : false
-                      }
-                      onWishlist={() =>
-                        it.recommendation && addToWishlist(it.recommendation.gear.id)
-                      }
+                      wishlistedIds={wishlisted}
+                      onWishlist={addToWishlist}
                       onDragStart={() => setDragId(it.id)}
                       onDragEnd={() => {
                         setDragId(null);
@@ -476,7 +472,7 @@ function PackRow({
   dragOver,
   gearTarget,
   onGearDrop,
-  wishlisted,
+  wishlistedIds,
   onWishlist,
   onDragStart,
   onDragEnd,
@@ -494,9 +490,9 @@ function PackRow({
   // True while closet gear is being dragged and this row is a valid (missing) target.
   gearTarget: boolean;
   onGearDrop: () => void;
-  // The item's suggested product is already on this scout's wishlist.
-  wishlisted: boolean;
-  onWishlist: () => void;
+  // Which picks (by gear id) are already on this scout's wishlist.
+  wishlistedIds: Set<string>;
+  onWishlist: (gearId: string) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   onDragEnter: () => void;
@@ -577,23 +573,46 @@ function PackRow({
         ) : (
           nameInput
         )}
-        {/* On a missing row, surface the leader-suggested product + a wishlist add. */}
-        {!item.owned && item.recommendation && (
+        {/* On a missing row, surface the leader-suggested picks; scout chooses one. */}
+        {!item.owned && item.recommendation && item.recommendation.picks.length > 0 && (
           <div className="sp-suggest">
-            <span className="sp-suggest__label">Recommended:</span>
-            <span className="sp-suggest__name">{item.recommendation.gear.name}</span>
-            {priceFrom(item.recommendation) != null && (
-              <span className="sp-suggest__price t10-num">
-                from {fmtPrice(priceFrom(item.recommendation))}
-              </span>
-            )}
-            {wishlisted ? (
-              <span className="sp-suggest__done">✓ On wishlist</span>
-            ) : (
-              <button className="sp-suggest__add" onClick={onWishlist} title="Add to wishlist">
-                + Wishlist
-              </button>
-            )}
+            <div className="sp-suggest__head">
+              Recommended: <span className="sp-suggest__set">{item.recommendation.set.name}</span>
+              {item.recommendation.set.description && (
+                <span className="sp-suggest__hint"> — {item.recommendation.set.description}</span>
+              )}
+            </div>
+            <ul className="sp-suggest__picks">
+              {item.recommendation.picks.map((p) => {
+                const price = priceFrom(p);
+                const added = wishlistedIds.has(p.gear.id);
+                return (
+                  <li key={p.gear.id} className="sp-suggest__pick">
+                    {p.gear.pick_label && (
+                      <span className="sp-suggest__tag">{p.gear.pick_label}</span>
+                    )}
+                    <span className="sp-suggest__name">{p.gear.name}</span>
+                    {price != null && (
+                      <span className="sp-suggest__price t10-num">from {fmtPrice(price)}</span>
+                    )}
+                    {p.gear.rationale && (
+                      <span className="sp-suggest__why">{p.gear.rationale}</span>
+                    )}
+                    {added ? (
+                      <span className="sp-suggest__done">✓ On wishlist</span>
+                    ) : (
+                      <button
+                        className="sp-suggest__add"
+                        onClick={() => onWishlist(p.gear.id)}
+                        title={`Add ${p.gear.name} to wishlist`}
+                      >
+                        + Wishlist
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </td>

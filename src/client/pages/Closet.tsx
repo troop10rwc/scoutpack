@@ -16,7 +16,7 @@ import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
 import type {
   ClosetItem,
   ImportPreviewItem,
-  RecommendedGearBundle,
+  RecommendationSetBundle,
   Scout,
 } from "../../shared/types.ts";
 
@@ -57,9 +57,9 @@ export function Closet({ scout }: { scout: Scout }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [linkEditId, setLinkEditId] = useState<string | null>(null);
-  // "Browse recommended" drawer: the catalog + which gear ids are wishlisted.
+  // "Browse recommended" drawer: the sets + which pick ids are wishlisted.
   const [browseOpen, setBrowseOpen] = useState(false);
-  const [catalog, setCatalog] = useState<RecommendedGearBundle[] | null>(null);
+  const [catalog, setCatalog] = useState<RecommendationSetBundle[] | null>(null);
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   // Hidden file input shared by every row's camera button.
   const fileRef = useRef<HTMLInputElement>(null);
@@ -88,10 +88,10 @@ export function Closet({ scout }: { scout: Scout }) {
     api.listCloset(scout.id).then(setItems).catch((e: Error) => setErr(e.message));
   }, [scout.id]);
 
-  // Load the recommended-gear catalog the first time the drawer is opened.
+  // Load the recommendation sets the first time the drawer is opened.
   useEffect(() => {
     if (browseOpen && catalog === null) {
-      api.listRecommended().then(setCatalog).catch(() => setCatalog([]));
+      api.listRecommendationSets().then(setCatalog).catch(() => setCatalog([]));
     }
   }, [browseOpen, catalog]);
   // Reset the per-scout wishlisted tracking when switching scouts.
@@ -386,16 +386,16 @@ function RecommendedDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  catalog: RecommendedGearBundle[] | null;
+  catalog: RecommendationSetBundle[] | null;
   scoutName: string;
   wishlistedIds: Set<string>;
   onWishlist: (gearId: string) => void;
 }) {
-  const byCat = new Map<string, RecommendedGearBundle[]>();
+  const byCat = new Map<string, RecommendationSetBundle[]>();
   for (const b of catalog ?? []) {
-    const arr = byCat.get(b.gear.category) ?? [];
+    const arr = byCat.get(b.set.category) ?? [];
     arr.push(b);
-    byCat.set(b.gear.category, arr);
+    byCat.set(b.set.category, arr);
   }
   const cats = [...byCat.keys()].sort((a, b) => a.localeCompare(b));
 
@@ -415,31 +415,38 @@ function RecommendedDrawer({
           {cats.map((cat) => (
             <div key={cat} className="sp-recbrowse__cat">
               <SectionLabel>{cat}</SectionLabel>
-              <ul className="sp-recbrowse__list">
-                {(byCat.get(cat) ?? []).map((b) => {
-                  const added = wishlistedIds.has(b.gear.id);
-                  return (
-                    <li key={b.gear.id} className="sp-recbrowse__item">
-                      <div className="sp-recbrowse__info">
-                        <span className="sp-recbrowse__name">{b.gear.name}</span>
-                        {b.gear.brand && <span className="t10-sub"> · {b.gear.brand}</span>}
-                        {priceFrom(b) != null && (
-                          <span className="sp-recbrowse__price t10-num">
-                            from {fmtPrice(priceFrom(b))}
-                          </span>
-                        )}
-                      </div>
-                      {added ? (
-                        <StatusPill tone="ok">On wishlist</StatusPill>
-                      ) : (
-                        <Button size="sm" onClick={() => onWishlist(b.gear.id)}>
-                          + Wishlist
-                        </Button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+              {(byCat.get(cat) ?? []).map((b) => (
+                <div key={b.set.id} className="sp-recbrowse__set">
+                  <div className="sp-recbrowse__need">{b.set.name}</div>
+                  <ul className="sp-recbrowse__list">
+                    {b.picks.map((p) => {
+                      const added = wishlistedIds.has(p.gear.id);
+                      return (
+                        <li key={p.gear.id} className="sp-recbrowse__item">
+                          <div className="sp-recbrowse__info">
+                            {p.gear.pick_label && (
+                              <span className="sp-recbrowse__tag">{p.gear.pick_label}</span>
+                            )}
+                            <span className="sp-recbrowse__name">{p.gear.name}</span>
+                            {priceFrom(p) != null && (
+                              <span className="sp-recbrowse__price t10-num">
+                                from {fmtPrice(priceFrom(p))}
+                              </span>
+                            )}
+                          </div>
+                          {added ? (
+                            <StatusPill tone="ok">On wishlist</StatusPill>
+                          ) : (
+                            <Button size="sm" onClick={() => onWishlist(p.gear.id)}>
+                              + Wishlist
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
             </div>
           ))}
         </div>

@@ -95,6 +95,7 @@ export function Wishlist({ scout }: { scout: Scout }) {
             {(byCat.get(cat) ?? []).map((it) => (
               <li key={it.id} className="sp-wishcard">
                 <div className="sp-wishcard__main">
+                  {it.pick_label && <span className="sp-wishcard__tag">{it.pick_label}</span>}
                   <span className="sp-wishcard__name">{it.name}</span>
                   {it.brand && <span className="t10-sub"> · {it.brand}</span>}
                   {it.description && <p className="sp-wishcard__desc">{it.description}</p>}

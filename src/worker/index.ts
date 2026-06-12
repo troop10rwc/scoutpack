@@ -46,14 +46,17 @@ import {
 } from "./gear.ts";
 import {
   addToWishlist,
-  archiveRecommendedGear,
-  createRecommendedGear,
+  applyCsvImport,
+  archiveRecommendationSet,
+  createRecommendationSet,
+  CsvError,
   fulfillWishlistItem,
-  listRecommendedGear,
+  listRecommendationSets,
   listWishlist,
+  previewCsvImport,
   removeWishlistItem,
-  updateRecommendedGear,
-  type RecommendedGearInput,
+  updateRecommendationSet,
+  type RecommendationSetInput,
   type WishlistInput,
 } from "./recommend.ts";
 
@@ -458,61 +461,97 @@ api.post("/templates/:eventType", async (c) => {
   return c.json(bundle, 201);
 });
 
-// ---- recommended gear (leader-curated catalog) ----
+// ---- recommendation sets (leader-curated catalog) ----
 // Readable by any authed user (scouts browse to wishlist). Leaders see archived
-// rows too when ?include_archived=1.
-api.get("/recommended", async (c) => {
+// sets too when ?include_archived=1.
+api.get("/recommendation-sets", async (c) => {
   const includeArchived =
     c.req.query("include_archived") === "1" && c.get("user").role === "leader";
-  return c.json(await listRecommendedGear(c.env.DB, includeArchived));
+  return c.json(await listRecommendationSets(c.env.DB, includeArchived));
 });
 
-api.post("/recommended", async (c) => {
+api.post("/recommendation-sets", async (c) => {
   try {
     requireLeader(c);
   } catch (e) {
     const { body, status } = handleError(e);
     return c.json(body, status as 403);
   }
-  const body = await c.req.json<Partial<RecommendedGearInput>>();
+  const body = await c.req.json<Partial<RecommendationSetInput>>();
   if (!body.name?.trim() || !body.category?.trim())
     return c.json(bad("name and category are required"), 400);
-  const bundle = await createRecommendedGear(
+  const bundle = await createRecommendationSet(
     c.env.DB,
-    { ...(body as RecommendedGearInput), options: body.options ?? [] },
+    { ...(body as RecommendationSetInput), picks: body.picks ?? [] },
     c.get("user").email,
   );
   return c.json(bundle, 201);
 });
 
-api.patch("/recommended/:id", async (c) => {
+api.patch("/recommendation-sets/:id", async (c) => {
   try {
     requireLeader(c);
   } catch (e) {
     const { body, status } = handleError(e);
     return c.json(body, status as 403);
   }
-  const body = await c.req.json<Partial<RecommendedGearInput>>();
+  const body = await c.req.json<Partial<RecommendationSetInput>>();
   if (!body.name?.trim() || !body.category?.trim())
     return c.json(bad("name and category are required"), 400);
-  const bundle = await updateRecommendedGear(
+  const bundle = await updateRecommendationSet(
     c.env.DB,
     c.req.param("id"),
-    { ...(body as RecommendedGearInput), options: body.options ?? [] },
+    { ...(body as RecommendationSetInput), picks: body.picks ?? [] },
     c.get("user").email,
   );
   return bundle ? c.json(bundle) : c.json(bad("not found"), 404);
 });
 
-api.post("/recommended/:id/archive", async (c) => {
+api.post("/recommendation-sets/:id/archive", async (c) => {
   try {
     requireLeader(c);
   } catch (e) {
     const { body, status } = handleError(e);
     return c.json(body, status as 403);
   }
-  const ok = await archiveRecommendedGear(c.env.DB, c.req.param("id"));
+  const ok = await archiveRecommendationSet(c.env.DB, c.req.param("id"));
   return ok ? c.json({ ok: true }) : c.json(bad("not found"), 404);
+});
+
+// Bulk load from pasted CSV: preview (no writes) then apply (upsert). Leader-only.
+api.post("/recommendation-sets/import/preview", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<{ csv?: string }>();
+  if (!body.csv?.trim()) return c.json(bad("csv is required"), 400);
+  try {
+    return c.json(await previewCsvImport(c.env.DB, body.csv));
+  } catch (e) {
+    if (e instanceof CsvError) return c.json(bad(e.message), 400);
+    throw e;
+  }
+});
+
+api.post("/recommendation-sets/import", async (c) => {
+  try {
+    requireLeader(c);
+  } catch (e) {
+    const { body, status } = handleError(e);
+    return c.json(body, status as 403);
+  }
+  const body = await c.req.json<{ csv?: string }>();
+  if (!body.csv?.trim()) return c.json(bad("csv is required"), 400);
+  try {
+    const result = await applyCsvImport(c.env.DB, body.csv, c.get("user").email);
+    return c.json(result, 201);
+  } catch (e) {
+    if (e instanceof CsvError) return c.json(bad(e.message), 400);
+    throw e;
+  }
 });
 
 // ---- wishlist (per-scout) ----
