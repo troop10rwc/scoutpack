@@ -287,13 +287,24 @@
 .sp-linkbadge svg { width: 13px; height: 13px; }
 .sp-linkbadge:hover { background: var(--t10-clay-tint); color: var(--t10-clay-deep); }
 
-/* The kit's Drawer force-mounts its Radix scrim + panel so they can animate
-   open/closed. But Radix stamps an inline `pointer-events: auto` on the overlay
-   even while it's closed, which defeats the kit's own
-   `.t10-scrim { pointer-events: none }` and leaves an invisible, full-content
-   overlay that swallows every click on the page. Restore the closed state's
-   intent (!important to beat Radix's inline style); the panel gets the same
-   treatment as a belt-and-suspenders since it sits off-screen when closed. */
+/* The kit's Drawer is built to live inside an <OverlayHost> (position: relative)
+   that fills the viewport; AppShell doesn't provide one, so we adapt it here.
+   Two problems without that host:
+   1. The scrim/panel are `position: absolute`, so they size to the full document
+      (thousands of px tall) instead of the viewport. On a narrow screen the
+      full-width panel and its close "×" scroll off-screen with the page — the
+      drawer becomes impossible to dismiss. Pin both to the viewport with fixed.
+   2. The kit's z-index (scrim 10 / drawer 11) sits below the sticky
+      BackOfficeTopNav (z 50), so an open drawer renders *behind* the top bar and
+      its header + close "×" get occluded. Lift both above the chrome so the
+      drawer is a true full-viewport modal.
+   3. The Drawer force-mounts its Radix overlay so it can animate, but Radix
+      stamps an inline `pointer-events: auto` on the overlay even while closed,
+      defeating the kit's own `.t10-scrim { pointer-events: none }` and leaving
+      an invisible, full-page overlay that swallows every click. Restore the
+      closed-state intent (!important to beat Radix's inline style). */
+.t10-scrim { position: fixed; z-index: 90; }
+.t10-drawer { position: fixed; z-index: 91; }
 .t10-scrim:not(.t10-scrim--show) { pointer-events: none !important; }
 .t10-drawer:not(.t10-drawer--open) { pointer-events: none !important; }
 
