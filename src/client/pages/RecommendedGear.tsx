@@ -447,6 +447,36 @@ const CSV_PLACEHOLDER = `set,category,product,label,brand,weight_g,rationale,buy
 Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm and affordable but heavier,"REI|159.95|https://rei.com/x; Amazon|149|https://amzn.to/y"
 Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI,765,Premium down holds up for years,"REI|329|https://rei.com/z"`;
 
+// A self-contained prompt a leader can paste into any AI agent to generate a CSV
+// in exactly the shape this importer expects. The agent returns the CSV, which
+// the leader pastes into the box above.
+const LLM_PROMPT = `You are helping a Scouts BSA troop build a catalog of recommended gear. Produce a CSV I can paste directly into our gear app's importer.
+
+Output ONLY the CSV — no commentary, no markdown, no code fences. Use this exact header row, then one row per product:
+
+set,category,product,label,brand,weight_g,rationale,buy_options
+
+Column rules:
+- set: the gear NEED (the generic item a scout must bring, e.g. "Backpacking sleeping bag"). Repeat it across that need's picks — rows sharing a set are grouped as alternatives.
+- category: a gear category (e.g. Sleep System, Hiking Gear, Clothing, Camp, Mess Kit, Personal).
+- product: a specific, real, currently-available product (brand + model).
+- label: the "best for" tag in 1-3 words — what makes this the right pick (e.g. Budget, Most durable, Lightest, Best all-around).
+- brand: the manufacturer.
+- weight_g: item weight in grams (whole number; leave blank if unknown).
+- rationale: one short sentence on why a scout would choose this pick.
+- buy_options: where to buy, as vendor|price|url triples separated by ";". Price in US dollars, number only. URL optional. Wrap this cell in double quotes because it contains commas/semicolons. Example: "REI|159.95|https://www.rei.com/...; Amazon|149|https://www.amazon.com/..."
+
+Guidance:
+- Give each need 2-3 picks that trade off on cost, durability, and weight.
+- Use realistic current prices and youth/entry-appropriate gear suitable for Scouts BSA backpacking and car camping.
+
+Cover these gear needs: <REPLACE WITH YOUR LIST, e.g. backpacking sleeping bag, sleeping pad, backpack, headlamp, water filter, backpacking stove>
+
+Example of the exact format:
+set,category,product,label,brand,weight_g,rationale,buy_options
+Backpacking sleeping bag,Sleep System,Kelty Cosmic 20,Budget,Kelty,1560,Warm down bag at a low price,"REI|159.95|https://www.rei.com/x; Amazon|149|https://www.amazon.com/y"
+Backpacking sleeping bag,Sleep System,REI Magma 30,Most durable,REI Co-op,765,Premium down that holds up for years,"REI|329|https://www.rei.com/z"`;
+
 function CsvImportDrawer({
   open,
   onClose,
@@ -460,7 +490,18 @@ function CsvImportDrawer({
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof api.previewRecommendationCsv>> | null>(null);
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(LLM_PROMPT);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setErr("Couldn’t copy — your browser blocked clipboard access.");
+    }
+  }
 
   function reset() {
     setCsv("");
@@ -520,6 +561,15 @@ function CsvImportDrawer({
           Rows sharing a <code>set</code> group together. <code>buy_options</code> is{" "}
           <code>vendor|price|url</code> separated by <code>;</code>.
         </p>
+        <div className="sp-rec__llm">
+          <span className="t10-sub">Don’t have a CSV yet?</span>
+          <Button size="sm" onClick={copyPrompt}>
+            {copied ? "✓ Copied prompt" : "Copy prompt for an AI agent"}
+          </Button>
+          <span className="t10-sub">
+            Paste it into ChatGPT/Claude, then paste the CSV it returns below.
+          </span>
+        </div>
         <textarea
           className="sp-rec__csv"
           placeholder={CSV_PLACEHOLDER}

@@ -368,6 +368,11 @@
 
 /* CSV paste-import panel inside the import drawer. */
 .sp-rec__import { display: flex; flex-direction: column; gap: var(--t10-s4); }
+.sp-rec__llm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px dashed var(--t10-line); border-radius: var(--t10-r-sm);
+  background: var(--t10-surface-2);
+}
 .sp-rec__import code {
   font-family: var(--t10-font-mono); font-size: var(--t10-fs-xs);
   background: var(--t10-surface-3); padding: 0 3px; border-radius: 3px;
