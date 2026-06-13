@@ -205,6 +205,11 @@
   border-radius: var(--t10-r-sm); color: var(--t10-ink-faint); cursor: pointer; opacity: .6;
 }
 .sp-navpin__x:hover { opacity: 1; color: var(--t10-clay-deep); background: var(--t10-clay-tint); }
+/* Keep the active event's pine highlight while hovered. The kit's `.t10-nav:hover`
+   lightens the background to a pale surface, but `.t10-nav--child.t10-nav--active`
+   keeps the cream text at equal specificity — without this the active item reads
+   illegibly as cream-on-beige under the cursor. */
+.t10-nav--child.t10-nav--active:hover { background: var(--t10-pine); color: rgb(243, 240, 230); }
 
 /* ---- Event detail: packing list + closet-palette sidebar ---------------- */
 /* The kit's shell card clips its rounded corners with `overflow: hidden`, which
