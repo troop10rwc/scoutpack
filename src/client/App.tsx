@@ -27,6 +27,14 @@ interface SelectedEvent {
   name: string;
 }
 
+// An event the active scout has a packing list for — i.e. one being actively
+// worked on. Surfaced under "Upcoming" automatically (no need to have opened it).
+interface WorkedEvent {
+  id: string;
+  name: string;
+  start_at: string;
+}
+
 // Every event you open is remembered (deduped by id) so it stays a one-click
 // shortcut under "Upcoming". Persisted as an array; a malformed/legacy value
 // (the old single-object key) just yields an empty list.
@@ -114,6 +122,7 @@ export function App() {
   );
   const [chrome, setChrome] = useState<Chrome | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<SelectedEvent[]>(loadSelectedEvents);
+  const [workedEvents, setWorkedEvents] = useState<WorkedEvent[]>([]);
   const route = useRoute();
 
   useEffect(() => {
@@ -159,6 +168,29 @@ export function App() {
       return next;
     });
   }, [route.kind, route.kind === "event" ? route.eventId : "", eventTitle]);
+
+  // Surface every event the active scout has a packing list for under "Upcoming"
+  // automatically — these are the ones actively being worked on, distinct from the
+  // localStorage shortcuts above (which only remember events you've opened). Refetch
+  // on scout change and on each route change so a list generated elsewhere (e.g. the
+  // dashboard's "Generate packing list") shows up as soon as you land on its page.
+  useEffect(() => {
+    if (!activeScoutId) return;
+    let cancelled = false;
+    api.upcomingEvents(activeScoutId)
+      .then((evs) => {
+        if (cancelled) return;
+        setWorkedEvents(
+          evs
+            .filter((e) => e.packing)
+            .map((e) => ({ id: e.id, name: e.name, start_at: e.start_at })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeScoutId, route.kind]);
 
   function setActiveScoutId(id: string) {
     localStorage.setItem(ACTIVE_SCOUT_KEY, id);
@@ -206,37 +238,45 @@ export function App() {
     route.kind === "wishlist" ||
     route.kind === "event";
 
-  // Hang each remembered event off "Upcoming" as a nested, directly-navigable
-  // child (a hash link), so it stays a one-click shortcut from anywhere. The
-  // label carries an unpin "×" that swallows the click so it doesn't navigate.
+  // Children of "Upcoming" come from two sources, deduped by id: events the scout
+  // is actively working on (has a packing list — shown first, soonest-start first)
+  // and events you've merely opened (localStorage shortcuts). The worked-on ones
+  // are intrinsic, so they carry no unpin "×"; the opened-only ones do.
+  const navChild = (ev: { id: string; name: string }, removable: boolean): NavItem => ({
+    id: eventNavId(ev.id),
+    href: eventHref(ev.id),
+    label: (
+      <span className="sp-navpin">
+        <span className="sp-navpin__name">{ev.name}</span>
+        {removable && (
+          <span
+            className="sp-navpin__x"
+            role="button"
+            tabIndex={0}
+            aria-label={`Unpin ${ev.name}`}
+            title="Unpin"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              unpinEvent(ev.id);
+            }}
+          >
+            ×
+          </span>
+        )}
+      </span>
+    ),
+  });
+  const workedIds = new Set(workedEvents.map((e) => e.id));
+  const upcomingChildren: NavItem[] = [
+    ...[...workedEvents]
+      .sort((a, b) => a.start_at.localeCompare(b.start_at))
+      .map((ev) => navChild(ev, false)),
+    ...selectedEvents.filter((e) => !workedIds.has(e.id)).map((ev) => navChild(ev, true)),
+  ];
   const withPins = (item: NavItem): NavItem =>
-    item.id === "lists" && selectedEvents.length
-      ? {
-          ...item,
-          children: selectedEvents.map((ev) => ({
-            id: eventNavId(ev.id),
-            href: eventHref(ev.id),
-            label: (
-              <span className="sp-navpin">
-                <span className="sp-navpin__name">{ev.name}</span>
-                <span
-                  className="sp-navpin__x"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Unpin ${ev.name}`}
-                  title="Unpin"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    unpinEvent(ev.id);
-                  }}
-                >
-                  ×
-                </span>
-              </span>
-            ),
-          })),
-        }
+    item.id === "lists" && upcomingChildren.length
+      ? { ...item, children: upcomingChildren }
       : item;
   const nav: NavGroup[] = NAV_GROUPS.map((g) => ({
     ...g,
