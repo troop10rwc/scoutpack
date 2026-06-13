@@ -169,6 +169,21 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     }
   }
 
+  // Delete the entire packing list bound to this event so the scout can reattach
+  // (regenerate) a fresh one. Dangerous + rare — double-confirmed, then the page
+  // drops back to the empty "Generate" state.
+  async function deleteList() {
+    if (!bundle?.list) return;
+    if (!confirm("Delete this event's packing list? This removes all its items and cannot be undone. You can regenerate a fresh list afterward."))
+      return;
+    try {
+      await api.deletePackingList(scout.id, eventId);
+      load();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
   // Link a "missing" packing item to an existing closet item dragged in from the
   // gear sidebar. The server resolves ownership + weight; patch reflects it. The
   // linked gear then drops out of the palette (it's filtered by closet_item_id).
@@ -332,6 +347,22 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
           + Add new category
         </Button>
       </div>
+
+      <section className="sp-danger" aria-label="Danger zone">
+        <h2 className="sp-danger__head">Danger zone</h2>
+        <div className="sp-danger__row">
+          <div className="sp-danger__copy">
+            <strong>Delete this packing list</strong>
+            <span className="t10-sub">
+              Removes the list and all its items for this event. Use this to start over —
+              you can regenerate a fresh list from the template afterward.
+            </span>
+          </div>
+          <Button variant="danger" onClick={deleteList}>
+            Delete packing list
+          </Button>
+        </div>
+      </section>
     </div>
 
       <GearSidebar

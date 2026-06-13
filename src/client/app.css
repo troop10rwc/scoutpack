@@ -180,6 +180,28 @@
 }
 .sp-addcat .sp-cell { max-width: 16rem; border-color: var(--t10-line); }
 
+/* ---- Danger zone: destructive, rarely-used actions at the page bottom ----- */
+.sp-danger {
+  margin-top: var(--t10-s6);
+  padding: var(--t10-s4) var(--t10-s5);
+  border: 1px solid var(--t10-status-alert-fg);
+  border-radius: var(--t10-r, 8px);
+  background: var(--t10-status-alert-bg);
+}
+.sp-danger__head {
+  margin: 0 0 var(--t10-s3);
+  font-size: var(--t10-fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--t10-status-alert-fg);
+}
+.sp-danger__row {
+  display: flex; gap: var(--t10-s4); align-items: center;
+  justify-content: space-between; flex-wrap: wrap;
+}
+.sp-danger__copy { display: flex; flex-direction: column; gap: 2px; max-width: 38rem; }
+
 /* ---- Closet: tools (add gear + import) ----------------------------------- */
 .sp-tools {
   margin-top: var(--t10-s6); padding-top: var(--t10-s5);

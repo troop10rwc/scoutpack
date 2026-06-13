@@ -28,6 +28,7 @@ import {
   createPackingList,
   deleteClosetItem,
   createClosetItem,
+  deletePackingList,
   deletePackingListItem,
   getActiveTemplate,
   getClosetItem,
@@ -362,6 +363,15 @@ api.post("/scouts/:scoutId/packing-lists", async (c) => {
     const { body: errBody, status } = handleError(e);
     return c.json(errBody, status as 400 | 500);
   }
+});
+
+// Delete the scout's whole packing list for an event (the binding), letting them
+// reattach by generating a fresh list. Dangerous + rarely used; gated in the UI.
+api.delete("/scouts/:scoutId/packing-lists/:eventId", async (c) => {
+  const scoutId = c.req.param("scoutId");
+  await assertScoutOwned(c.env.DB, c.get("accountId"), scoutId);
+  const ok = await deletePackingList(c.env.DB, scoutId, c.req.param("eventId"));
+  return ok ? c.json({ ok: true }) : c.json(bad("packing list not found"), 404);
 });
 
 // Add an item to an existing packing list. The list is identified by id in the
