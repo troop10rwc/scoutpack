@@ -4,6 +4,7 @@ import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { CategoryInput, Icon, NameInput, useCategorySuggestions, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
+import { WeightBar, colorForCategory, type WeightSegment } from "../components/weightbar.tsx";
 import { EVENT_TYPE_LABELS } from "../../shared/constants.ts";
 import type { ClosetItem, PackingItemView, PackingListBundle, Scout } from "../../shared/types.ts";
 
@@ -243,6 +244,21 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
     a.localeCompare(b),
   );
 
+  // Stacked-bar segments: one per category that carries weight, sized by share
+  // of the total. The hover breakdown lists each owned item's weight (heaviest
+  // first); missing/unlinked items weigh nothing and are left out.
+  const weightSegments: WeightSegment[] = renderCats
+    .map((cat) => {
+      const list = byCategory.get(cat) ?? [];
+      const items = list
+        .map((it) => ({ name: it.closet_item?.name ?? it.name, weight: weightOf(it) }))
+        .filter((x) => x.weight > 0)
+        .sort((a, b) => b.weight - a.weight);
+      const value = items.reduce((a, x) => a + x.weight, 0);
+      return { category: cat, color: colorForCategory(cat, renderCats), value, items };
+    })
+    .filter((s) => s.value > 0);
+
   // The whole closet is the palette; items already linked to a row on this list
   // are shown as used (a link badge, not draggable) rather than hidden.
   const linkedIds = new Set(items.map((i) => i.closet_item_id).filter((x): x is string => !!x));
@@ -257,6 +273,8 @@ export function EventDetail({ scout, eventId }: { scout: Scout; eventId: string 
         <span><span className="t10-num">{fmtKg(totalWeight)}</span> owned gear</span>
         {owned < total && <StatusPill tone="alert">{total - owned} missing from closet</StatusPill>}
       </div>
+
+      {weightSegments.length > 0 && <WeightBar segments={weightSegments} fmt={fmtKg} />}
 
       {renderCats.map((cat) => {
         const list = byCategory.get(cat) ?? [];

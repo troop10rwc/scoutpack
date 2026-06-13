@@ -13,21 +13,13 @@ import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
 import { CategoryInput, Icon, NameInput, useCategorySuggestions, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
+import { colorForCategory } from "../components/weightbar.tsx";
 import type {
   ClosetItem,
   ImportPreviewItem,
   RecommendationSetBundle,
   Scout,
 } from "../../shared/types.ts";
-
-// Distinct categorical palette for the donut + legend + section swatches, keyed
-// by the category's alphabetical position. This is data-viz: a chart legitimately
-// needs N distinguishable hues, which no single semantic token provides.
-const PALETTE = [
-  "#4f86c6", "#e8833a", "#cc3333", "#e0c020", "#a8d24a",
-  "#4f9d3a", "#7e3ff2", "#39a0a0", "#d23a8a", "#9c6b3f",
-  "#3a6ed2", "#7a7a7a",
-];
 
 type Unit = "metric" | "imperial";
 
@@ -116,8 +108,7 @@ export function Closet({ scout }: { scout: Scout }) {
     () => [...new Set((items ?? []).map((i) => i.category))].sort((a, b) => a.localeCompare(b)),
     [items],
   );
-  const colorFor = (cat: string) =>
-    PALETTE[Math.max(0, categories.indexOf(cat)) % PALETTE.length];
+  const colorFor = (cat: string) => colorForCategory(cat, categories);
 
   function changeUnit(u: Unit) {
     setUnit(u);
@@ -655,11 +646,8 @@ function PackSummary({
     .reduce((a, it) => a + weightOf(it), 0);
   const base = total - worn - consumable;
 
-  const segments = cats.map((c) => ({ color: colorFor(c), value: catTotals.get(c) ?? 0 }));
-
   return (
     <section className="sp-summary">
-      <Donut segments={segments} />
       <table className="sp-legend">
         <thead>
           <tr>
@@ -698,49 +686,6 @@ function PackSummary({
         </tfoot>
       </table>
     </section>
-  );
-}
-
-// Pure-SVG donut chart: one stroked arc per category, sized by weight share.
-function Donut({ segments }: { segments: { color: string; value: number }[] }) {
-  const r = 80;
-  const cx = 100;
-  const cy = 100;
-  const circumference = 2 * Math.PI * r;
-  const total = segments.reduce((a, s) => a + s.value, 0);
-  const gap = total > 0 ? 2 : 0; // small gap between segments
-  let offset = 0;
-
-  return (
-    <svg viewBox="0 0 200 200" width={180} height={180} className="sp-donut">
-      <g transform="rotate(-90 100 100)">
-        {total === 0 ? (
-          <circle cx={cx} cy={cy} r={r} fill="none" style={{ stroke: "var(--t10-line)" }} strokeWidth={38} />
-        ) : (
-          segments
-            .filter((s) => s.value > 0)
-            .map((s, i) => {
-              const len = (s.value / total) * circumference;
-              const dash = Math.max(len - gap, 0.0001);
-              const el = (
-                <circle
-                  key={i}
-                  cx={cx}
-                  cy={cy}
-                  r={r}
-                  fill="none"
-                  stroke={s.color}
-                  strokeWidth={38}
-                  strokeDasharray={`${dash} ${circumference - dash}`}
-                  strokeDashoffset={-offset}
-                />
-              );
-              offset += len;
-              return el;
-            })
-        )}
-      </g>
-    </svg>
   );
 }
 
