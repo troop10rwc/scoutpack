@@ -255,8 +255,6 @@ export function Closet({ scout }: { scout: Scout }) {
         onChange={onFileChosen}
       />
 
-      {items.length > 0 && <PackSummary items={items} colorFor={colorFor} unit={unit} />}
-
       {renderCats.map((cat) => {
         const list = byCategory.get(cat) ?? [];
         const subtotal = list.reduce((acc, it) => acc + weightOf(it), 0);
@@ -622,70 +620,6 @@ function GearRow({
         </tr>
       )}
     </>
-  );
-}
-
-function PackSummary({
-  items,
-  colorFor,
-  unit,
-}: {
-  items: ClosetItem[];
-  colorFor: (cat: string) => string;
-  unit: Unit;
-}) {
-  const catTotals = new Map<string, number>();
-  for (const it of items) {
-    catTotals.set(it.category, (catTotals.get(it.category) ?? 0) + weightOf(it));
-  }
-  const cats = [...catTotals.keys()].sort((a, b) => a.localeCompare(b));
-  const total = items.reduce((a, it) => a + weightOf(it), 0);
-  const worn = items.filter((i) => i.is_worn).reduce((a, it) => a + weightOf(it), 0);
-  const consumable = items
-    .filter((i) => i.is_consumable)
-    .reduce((a, it) => a + weightOf(it), 0);
-  const base = total - worn - consumable;
-
-  return (
-    <section className="sp-summary">
-      <table className="sp-legend">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th className="is-right">Weight</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cats.map((c) => (
-            <tr key={c}>
-              <td>
-                <span className="sp-swatch" style={{ background: colorFor(c) }} />
-                {c}
-              </td>
-              <td className="is-right t10-num">{fmtBig(catTotals.get(c) ?? 0, unit)}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="sp-legend__rule">
-            <td>Total</td>
-            <td className="is-right t10-num">{fmtBig(total, unit)}</td>
-          </tr>
-          <tr>
-            <td>Consumable</td>
-            <td className="is-right t10-num">{fmtBig(consumable, unit)}</td>
-          </tr>
-          <tr>
-            <td>Worn</td>
-            <td className="is-right t10-num">{fmtBig(worn, unit)}</td>
-          </tr>
-          <tr className="sp-legend__rule">
-            <td>Base Weight</td>
-            <td className="is-right t10-num">{fmtBig(base, unit)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </section>
   );
 }
 

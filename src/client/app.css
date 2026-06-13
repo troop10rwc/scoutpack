@@ -37,17 +37,7 @@
 /* ---- Closet: unit toggle (headstrip) ------------------------------------- */
 .sp-unit { display: inline-flex; gap: 2px; }
 
-/* ---- Closet: pack summary (weight legend) -------------------------------- */
-.sp-summary { display: flex; gap: var(--t10-s6); align-items: center; flex-wrap: wrap; }
-.sp-legend { border-collapse: collapse; }
-.sp-legend th, .sp-legend td { padding: 3px var(--t10-s3); font-size: var(--t10-fs-sm); text-align: left; }
-.sp-legend th.is-right, .sp-legend td.is-right { text-align: right; white-space: nowrap; }
-.sp-legend thead th {
-  font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
-}
-.sp-legend tfoot td { font-weight: 600; }
-.sp-legend tfoot tr.sp-legend__rule td { border-top: 1px solid var(--t10-line); }
+/* ---- Closet: per-category section-head swatch ---------------------------- */
 .sp-swatch {
   display: inline-block; width: .8rem; height: .8rem; border-radius: 2px;
   margin-right: var(--t10-s2); vertical-align: middle;
