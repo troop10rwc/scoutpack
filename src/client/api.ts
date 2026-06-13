@@ -109,6 +109,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ event_id: eventId }),
     }),
+  // Delete the whole list bound to this event (the binding). Dangerous + rare;
+  // lets the scout discard and regenerate a fresh list.
+  deletePackingList: (scoutId: string, eventId: string) =>
+    request<{ ok: boolean }>(`/scouts/${scoutId}/packing-lists/${eventId}`, {
+      method: "DELETE",
+    }),
   updatePackingListItem: (
     scoutId: string,
     itemId: string,

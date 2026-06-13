@@ -651,6 +651,24 @@ export async function deletePackingListItem(
   return true;
 }
 
+// Delete a scout's whole packing list for an event — the event "binding" itself.
+// Items go with it (explicit delete + ON DELETE CASCADE both cover them). Returns
+// false if the scout has no list bound to that event. Rarely used: it lets a
+// scout discard a list and regenerate a fresh one from the current template.
+export async function deletePackingList(
+  db: D1Database,
+  scoutId: string,
+  eventId: string,
+): Promise<boolean> {
+  const list = await findPackingList(db, scoutId, eventId);
+  if (!list) return false;
+  await db.batch([
+    db.prepare(`DELETE FROM packing_list_items WHERE packing_list_id = ?`).bind(list.id),
+    db.prepare(`DELETE FROM packing_lists WHERE id = ?`).bind(list.id),
+  ]);
+  return true;
+}
+
 export interface PackingItemPatch {
   packed?: boolean;
   quantity?: number;
