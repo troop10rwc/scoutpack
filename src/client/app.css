@@ -390,7 +390,22 @@
 .sp-recneed__pickname { color: var(--t10-ink); font-weight: 500; }
 .sp-recneed__why { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); flex: 1 1 10rem; min-width: 0; }
 /* Buy options listed beneath each product option. */
-.sp-recneed__opts { list-style: none; margin: 1px 0 0 var(--t10-s5); padding: 0; display: flex; flex-direction: column; gap: 1px; }
+/* Per-pick buy options collapse behind a disclosure to keep the catalog dense. */
+.sp-recneed__buys { margin-left: var(--t10-s5); }
+.sp-recneed__buyhead {
+  display: inline-flex; align-items: baseline; gap: 4px; cursor: pointer;
+  font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); user-select: none;
+  list-style: none;
+}
+.sp-recneed__buyhead::-webkit-details-marker { display: none; }
+/* Custom caret so it matches the muted type; rotates when open. */
+.sp-recneed__buyhead::before {
+  content: "▸"; display: inline-block; font-size: .85em; color: var(--t10-ink-faint);
+  transition: transform .12s ease;
+}
+.sp-recneed__buys[open] > .sp-recneed__buyhead::before { transform: rotate(90deg); }
+.sp-recneed__buyhead:hover { color: var(--t10-ink-soft); }
+.sp-recneed__opts { list-style: none; margin: 1px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .sp-recneed__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
 .sp-recneed__vendor { color: var(--t10-ink); min-width: 7rem; }
 .sp-recneed__oprice { color: var(--t10-pine); }
