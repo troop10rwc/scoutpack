@@ -90,7 +90,13 @@
 /* Packing list: packed checkbox column + "missing from closet" row tint. */
 .sp-gear__check { width: 2rem; text-align: center; }
 .sp-gear__check input { accent-color: var(--t10-clay); cursor: pointer; }
-.sp-gear tr.is-missing td { background: var(--t10-clay-tint); }
+/* A missing item can't be packed yet — show its checkbox as locked-out. */
+.sp-gear__check input:disabled { cursor: not-allowed; opacity: .4; }
+.sp-gear tr.is-missing td { background: var(--t10-surface-3); }
+/* When an item carries a recommendation, its picks render in the next row; drop
+   the divider between them so the item + suggestions read as one block. */
+.sp-gear tr.has-suggest td { border-bottom: none; }
+.sp-gear tr.sp-suggest-row td { padding-top: 0; }
 .sp-gear__grip { width: 1.2rem; padding-right: 0; }
 .sp-gear__del { width: 2rem; text-align: right; }
 .sp-gear__acts { white-space: nowrap; }
@@ -149,7 +155,9 @@
 /* name cell autocomplete (suggestions sourced from templates) */
 .sp-nameac { position: relative; }
 .sp-ac {
-  position: fixed; z-index: 50; margin: 2px 0 0;
+  /* Above the drawer (91) so the category autocomplete shows inside the
+     "new need" editor, not clipped behind it. */
+  position: fixed; z-index: 100; margin: 2px 0 0;
   width: max-content; max-width: 22rem; max-height: 16rem; overflow-y: auto;
   list-style: none; padding: 4px; background: var(--t10-surface);
   border: 1px solid var(--t10-line); border-radius: var(--t10-r-sm);
@@ -382,7 +390,22 @@
 .sp-recneed__pickname { color: var(--t10-ink); font-weight: 500; }
 .sp-recneed__why { color: var(--t10-ink-faint); font-size: var(--t10-fs-xs); flex: 1 1 10rem; min-width: 0; }
 /* Buy options listed beneath each product option. */
-.sp-recneed__opts { list-style: none; margin: 1px 0 0 var(--t10-s5); padding: 0; display: flex; flex-direction: column; gap: 1px; }
+/* Per-pick buy options collapse behind a disclosure to keep the catalog dense. */
+.sp-recneed__buys { margin-left: var(--t10-s5); }
+.sp-recneed__buyhead {
+  display: inline-flex; align-items: baseline; gap: 4px; cursor: pointer;
+  font-size: var(--t10-fs-xs); color: var(--t10-ink-faint); user-select: none;
+  list-style: none;
+}
+.sp-recneed__buyhead::-webkit-details-marker { display: none; }
+/* Custom caret so it matches the muted type; rotates when open. */
+.sp-recneed__buyhead::before {
+  content: "▸"; display: inline-block; font-size: .85em; color: var(--t10-ink-faint);
+  transition: transform .12s ease;
+}
+.sp-recneed__buys[open] > .sp-recneed__buyhead::before { transform: rotate(90deg); }
+.sp-recneed__buyhead:hover { color: var(--t10-ink-soft); }
+.sp-recneed__opts { list-style: none; margin: 1px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .sp-recneed__opt { display: flex; align-items: baseline; gap: 8px; font-size: var(--t10-fs-xs); color: var(--t10-ink-soft); }
 .sp-recneed__vendor { color: var(--t10-ink); min-width: 7rem; }
 .sp-recneed__oprice { color: var(--t10-pine); }

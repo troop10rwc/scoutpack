@@ -10,6 +10,7 @@ import {
   type Change,
 } from "@troop10rwc/ui";
 import { api, type RecommendationSetInput } from "../api.ts";
+import { CategoryInput, useCategorySuggestions } from "../components/gear.tsx";
 import { usePageChrome } from "../chrome.tsx";
 import type { RecommendationSetBundle, RecommendedGearBundle } from "../../shared/types.ts";
 
@@ -255,6 +256,7 @@ export function RecommendedGear() {
   const [importOpen, setImportOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const templateCategories = useCategorySuggestions();
 
   const active = (sets ?? []).filter((b) => b.set.is_active);
   // Keep the latest catalog in a ref so the headstrip export handlers (published
@@ -371,6 +373,11 @@ export function RecommendedGear() {
     byCat.set(b.set.category, arr);
   }
   const cats = [...byCat.keys()].sort((a, b) => a.localeCompare(b));
+  // Categories to autocomplete the editor's "Category" field: the ones already
+  // used by needs here, plus the canonical template categories. Ad-hoc still ok.
+  const categoryOptions = [...new Set([...cats, ...templateCategories])].sort((a, b) =>
+    a.localeCompare(b),
+  );
   const archived = sets.filter((b) => !b.set.is_active);
 
   return (
@@ -408,25 +415,31 @@ export function RecommendedGear() {
                         )}
                       </div>
                       {p.options.length > 0 && (
-                        <ul className="sp-recneed__opts">
-                          {p.options.map((o) => (
-                            <li key={o.id} className="sp-recneed__opt">
-                              <span className="sp-recneed__vendor">{o.vendor}</span>
-                              <span className="sp-recneed__oprice t10-num">{fmtPrice(o.price_cents)}</span>
-                              {o.note && <span className="t10-sub">{o.note}</span>}
-                              {o.url && (
-                                <a
-                                  href={o.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="sp-recneed__buy"
-                                >
-                                  ↗
-                                </a>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <details className="sp-recneed__buys">
+                          <summary className="sp-recneed__buyhead">
+                            {p.options.length} price{p.options.length === 1 ? "" : "s"}
+                            {priceFrom(p) != null && ` · from ${fmtPrice(priceFrom(p))}`}
+                          </summary>
+                          <ul className="sp-recneed__opts">
+                            {p.options.map((o) => (
+                              <li key={o.id} className="sp-recneed__opt">
+                                <span className="sp-recneed__vendor">{o.vendor}</span>
+                                <span className="sp-recneed__oprice t10-num">{fmtPrice(o.price_cents)}</span>
+                                {o.note && <span className="t10-sub">{o.note}</span>}
+                                {o.url && (
+                                  <a
+                                    href={o.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="sp-recneed__buy"
+                                  >
+                                    ↗
+                                  </a>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
                       )}
                     </li>
                   ))}
@@ -451,6 +464,7 @@ export function RecommendedGear() {
       <SetEditorDrawer
         draft={draft}
         saving={saving}
+        categoryOptions={categoryOptions}
         onClose={() => setDraft(null)}
         onChange={setDraft}
         onEditPick={editPick}
@@ -473,6 +487,7 @@ export function RecommendedGear() {
 function SetEditorDrawer({
   draft,
   saving,
+  categoryOptions,
   onClose,
   onChange,
   onEditPick,
@@ -482,6 +497,7 @@ function SetEditorDrawer({
 }: {
   draft: SetDraft | null;
   saving: boolean;
+  categoryOptions: string[];
   onClose: () => void;
   onChange: (d: SetDraft) => void;
   onEditPick: (key: string, patch: Partial<PickDraft>) => void;
@@ -518,10 +534,12 @@ function SetEditorDrawer({
             />
           </Field>
           <Field label="Category">
-            <input
+            <CategoryInput
               value={draft.category}
+              options={categoryOptions}
               placeholder="Sleep System"
-              onChange={(e) => onChange({ ...draft, category: e.target.value })}
+              onChange={(v) => onChange({ ...draft, category: v })}
+              onSubmit={(v) => onChange({ ...draft, category: v })}
             />
           </Field>
           <Field label="How to choose (optional)">

@@ -40,6 +40,34 @@ export function useTemplateSuggestions(): NameSuggestion[] {
   return suggestions;
 }
 
+// Distinct, sorted category names across every published template — the
+// canonical list the closet + packing-list "add category" fields autocomplete
+// against (ad-hoc names are still allowed). See [[useTemplateSuggestions]].
+export function useCategorySuggestions(): string[] {
+  const [categories, setCategories] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    Promise.all(EVENT_TYPES.map((t) => api.getTemplate(t).catch(() => null))).then(
+      (bundles) => {
+        if (!live) return;
+        const set = new Set<string>();
+        for (const b of bundles) {
+          if (!b) continue;
+          for (const it of b.items) {
+            const c = it.category?.trim();
+            if (c) set.add(c);
+          }
+        }
+        setCategories([...set].sort((a, b) => a.localeCompare(b)));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return categories;
+}
+
 // Inline gear glyphs (camera / link / worn / consumable / favorite). Shared so
 // the closet and packing-list rows render the same iconography.
 export function Icon({ name, filled }: { name: string; filled?: boolean }) {
@@ -210,6 +238,247 @@ export function NameInput({
             >
               <span className="sp-ac__name">{s.name}</span>
               <span className="sp-ac__tpl">{s.templates.join(", ")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// One selectable recommendation set: stable id + the name shown/typed.
+export type SetOption = { id: string; name: string };
+
+// Autocomplete for linking a template item to a recommendation set. Unlike a
+// <select>, you filter by typing; clearing the field (or backing out an exact
+// match) unlinks the row. Commits the matched set id, or null when empty.
+export function SetInput({
+  value,
+  options,
+  onChange,
+}: {
+  // The currently linked set id, or null when none.
+  value: string | null;
+  options: SetOption[];
+  onChange: (id: string | null) => void;
+}) {
+  // Local text mirrors the linked set's name; reset whenever the row's value or
+  // the option set changes (e.g. switching event types reloads the catalog).
+  const linkedName = options.find((o) => o.id === value)?.name ?? "";
+  const [text, setText] = useState(linkedName);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setText(linkedName);
+  }, [linkedName]);
+
+  const q = text.trim().toLowerCase();
+  const matches = q
+    ? options.filter((o) => o.name.toLowerCase().includes(q)).slice(0, 8)
+    : options.slice(0, 8);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, text]);
+
+  function pick(o: SetOption) {
+    setText(o.name);
+    onChange(o.id);
+    setOpen(false);
+  }
+
+  // On blur, snap the field back to the linked set's name and commit: an exact
+  // (case-insensitive) name match links that set; an empty field unlinks.
+  function commitText() {
+    const t = text.trim();
+    if (!t) {
+      onChange(null);
+      return;
+    }
+    const exact = options.find((o) => o.name.toLowerCase() === t.toLowerCase());
+    if (exact) onChange(exact.id);
+    else setText(linkedName);
+  }
+
+  return (
+    <div className="sp-nameac">
+      <input
+        ref={ref}
+        className="sp-cell"
+        value={text}
+        placeholder="— none —"
+        onChange={(e) => {
+          setText(e.target.value);
+          setOpen(true);
+          setActive(0);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setOpen(false), 120);
+          commitText();
+        }}
+        onKeyDown={(e) => {
+          if (!open || !matches.length) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActive((a) => Math.min(a + 1, matches.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            pick(matches[active]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+      />
+      {open && matches.length > 0 && pos && (
+        <ul
+          className="sp-ac"
+          role="listbox"
+          style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
+        >
+          {matches.map((o, i) => (
+            <li
+              key={o.id}
+              role="option"
+              aria-selected={i === active}
+              className={i === active ? "is-active" : ""}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(o);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="sp-ac__name">{o.name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Free-text input for naming a new category, with an autocomplete of categories
+// already used across templates. Unlike NameInput/SetInput, the typed value is
+// always accepted as-is (ad-hoc categories are the point) — suggestions are a
+// convenience, never a constraint. No option is pre-highlighted, so Enter
+// submits exactly what was typed unless the user arrows into the list.
+export function CategoryInput({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onSubmit,
+}: {
+  value: string;
+  options: string[];
+  placeholder?: string;
+  onChange: (v: string) => void;
+  // Enter, or picking a suggestion. Receives the chosen/typed text.
+  onSubmit: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+
+  const q = value.trim().toLowerCase();
+  // Suggest categories that aren't already an exact match for what's typed
+  // (no point offering the word you've already finished writing).
+  const matches = options
+    .filter((c) => c.toLowerCase().includes(q) && c.toLowerCase() !== q)
+    .slice(0, 8);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, value]);
+
+  function pick(c: string) {
+    onChange(c);
+    onSubmit(c);
+    setOpen(false);
+    setActive(-1);
+  }
+
+  return (
+    <div className="sp-nameac">
+      <input
+        ref={ref}
+        className="sp-cell"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setActive(-1);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && matches.length) {
+            e.preventDefault();
+            setOpen(true);
+            setActive((a) => Math.min(a + 1, matches.length - 1));
+          } else if (e.key === "ArrowUp" && matches.length) {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            // Arrowed into the list → take that suggestion; otherwise the
+            // typed text, verbatim.
+            if (open && active >= 0 && matches[active]) pick(matches[active]);
+            else if (value.trim()) onSubmit(value.trim());
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+      />
+      {open && matches.length > 0 && pos && (
+        <ul
+          className="sp-ac"
+          role="listbox"
+          style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
+        >
+          {matches.map((c, i) => (
+            <li
+              key={c}
+              role="option"
+              aria-selected={i === active}
+              className={i === active ? "is-active" : ""}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(c);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="sp-ac__name">{c}</span>
             </li>
           ))}
         </ul>

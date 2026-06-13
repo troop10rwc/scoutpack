@@ -11,6 +11,7 @@ import {
   type Column,
 } from "@troop10rwc/ui";
 import { api } from "../api.ts";
+import { SetInput } from "../components/gear.tsx";
 import { usePageChrome } from "../chrome.tsx";
 import { EVENT_TYPES, EVENT_TYPE_LABELS, type EventType } from "../../shared/constants.ts";
 import type { RecommendationSetBundle, TemplateBundle, TemplateItem } from "../../shared/types.ts";
@@ -133,12 +134,8 @@ export function Templates() {
     { value: "1", label: "Yes" },
     { value: "0", label: "No" },
   ];
-  // Sets → select options; "" is the explicit "no suggestion" choice.
-  const setNameById = new Map(catalog.map((b) => [b.set.id, b.set.name]));
-  const setOptions = [
-    { value: "", label: "— none —" },
-    ...catalog.map((b) => ({ value: b.set.id, label: b.set.name })),
-  ];
+  // Sets → autocomplete options for the "Suggested" column.
+  const setInputOptions = catalog.map((b) => ({ id: b.set.id, name: b.set.name }));
   const columns: Column<Row>[] = [
     { key: "name", header: "Name", editor: "text", value: (r) => r.name,
       render: (r) => r.name || <span className="t10-sub">unnamed</span> },
@@ -149,12 +146,14 @@ export function Templates() {
       render: (r) => (r.is_worn ? statusCell("Worn", "neutral") : <span className="t10-sub">—</span>) },
     { key: "is_consumable", header: "Consumable", editor: "select", value: (r) => String(r.is_consumable), options: yesNo,
       render: (r) => (r.is_consumable ? statusCell("Consumable", "neutral") : <span className="t10-sub">—</span>) },
-    { key: "recommendation_set_id", header: "Suggested", editor: "select",
-      value: (r) => r.recommendation_set_id ?? "", options: setOptions,
-      render: (r) =>
-        r.recommendation_set_id
-          ? <span>{setNameById.get(r.recommendation_set_id) ?? "linked"}</span>
-          : <span className="t10-sub">—</span> },
+    { key: "recommendation_set_id", header: "Suggested",
+      render: (r) => (
+        <SetInput
+          value={r.recommendation_set_id ?? null}
+          options={setInputOptions}
+          onChange={(id) => commit(r._k, "recommendation_set_id", id ?? "")}
+        />
+      ) },
   ];
 
   return (

@@ -11,7 +11,7 @@ import {
 } from "@troop10rwc/ui";
 import { api } from "../api.ts";
 import { usePageChrome } from "../chrome.tsx";
-import { Icon, NameInput, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
+import { CategoryInput, Icon, NameInput, useCategorySuggestions, useTemplateSuggestions, type NameSuggestion } from "../components/gear.tsx";
 import { fmtPrice, priceFrom } from "./RecommendedGear.tsx";
 import type {
   ClosetItem,
@@ -42,6 +42,7 @@ const clampQty = (v: string | number) => Math.min(99, Math.max(1, Math.floor(Num
 export function Closet({ scout }: { scout: Scout }) {
   const [items, setItems] = useState<ClosetItem[] | null>(null);
   const suggestions = useTemplateSuggestions();
+  const categorySuggestions = useCategorySuggestions();
   // Categories created via "Add new category" that have no items yet — they
   // wouldn't appear in the item-derived list until something lands in them.
   const [extraCategories, setExtraCategories] = useState<string[]>([]);
@@ -155,8 +156,10 @@ export function Closet({ scout }: { scout: Scout }) {
     }
   }
 
-  function addCategory() {
-    const c = newCat.trim();
+  function addCategory(name?: string) {
+    // Picking a suggestion submits its value directly; the button submits the
+    // current field. (setNewCat hasn't committed yet when a pick fires.)
+    const c = (typeof name === "string" ? name : newCat).trim();
     if (!c) return;
     if (!categories.includes(c) && !extraCategories.includes(c)) {
       setExtraCategories((x) => [...x, c]);
@@ -345,14 +348,17 @@ export function Closet({ scout }: { scout: Scout }) {
       })}
 
       <div className="sp-addcat">
-        <input
-          className="sp-cell"
+        <CategoryInput
           placeholder="New category name"
           value={newCat}
-          onChange={(e) => setNewCat(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+          // Only suggest categories not already on this closet.
+          options={categorySuggestions.filter(
+            (c) => !renderCats.some((r) => r.toLowerCase() === c.toLowerCase()),
+          )}
+          onChange={setNewCat}
+          onSubmit={addCategory}
         />
-        <Button onClick={addCategory} disabled={!newCat.trim()}>+ Add new category</Button>
+        <Button onClick={() => addCategory()} disabled={!newCat.trim()}>+ Add new category</Button>
       </div>
 
       <div className="sp-tools">
