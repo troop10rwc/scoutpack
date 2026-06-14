@@ -37,22 +37,46 @@
 /* ---- Closet: unit toggle (headstrip) ------------------------------------- */
 .sp-unit { display: inline-flex; gap: 2px; }
 
-/* ---- Closet: pack summary (donut + legend) ------------------------------- */
-.sp-summary { display: flex; gap: var(--t10-s6); align-items: center; flex-wrap: wrap; }
-.sp-donut { flex: 0 0 auto; }
-.sp-legend { border-collapse: collapse; }
-.sp-legend th, .sp-legend td { padding: 3px var(--t10-s3); font-size: var(--t10-fs-sm); text-align: left; }
-.sp-legend th.is-right, .sp-legend td.is-right { text-align: right; white-space: nowrap; }
-.sp-legend thead th {
-  font-family: var(--t10-font-display); font-size: 10px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--t10-ink-faint);
-}
-.sp-legend tfoot td { font-weight: 600; }
-.sp-legend tfoot tr.sp-legend__rule td { border-top: 1px solid var(--t10-line); }
+/* ---- Closet: per-category section-head swatch ---------------------------- */
 .sp-swatch {
   display: inline-block; width: .8rem; height: .8rem; border-radius: 2px;
   margin-right: var(--t10-s2); vertical-align: middle;
 }
+
+/* ---- Event: full-width weight bar (stacked, hover for breakdown) --------- */
+.sp-wbar { position: relative; width: 100%; }
+.sp-wbar__track {
+  display: flex; width: 100%; height: 30px; overflow: hidden;
+  border: 1px solid var(--t10-line); border-radius: var(--t10-r);
+}
+.sp-wbar__seg {
+  position: relative; min-width: 3px; display: flex; align-items: center;
+  cursor: default; transition: filter .1s ease;
+}
+/* hairline divider between adjacent segments */
+.sp-wbar__seg + .sp-wbar__seg { box-shadow: inset 1px 0 0 rgba(0, 0, 0, .2); }
+.sp-wbar__seg:hover, .sp-wbar__seg:focus-visible { filter: brightness(1.08); outline: none; }
+.sp-wbar__seglabel {
+  padding: 0 var(--t10-s2); font-size: 10px; font-weight: 700; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .35); pointer-events: none;
+}
+.sp-wbar__tip {
+  position: absolute; top: 100%; margin-top: var(--t10-s2); z-index: 5;
+  min-width: 180px; max-width: 300px;
+  background: var(--t10-surface); border: 1px solid var(--t10-line);
+  border-radius: var(--t10-r); box-shadow: var(--t10-shadow-lg);
+  padding: var(--t10-s3); pointer-events: none;
+}
+.sp-wbar__tiphead {
+  display: flex; align-items: center; gap: var(--t10-s1);
+  font-weight: 700; font-size: var(--t10-fs-sm); margin-bottom: var(--t10-s2);
+  padding-bottom: var(--t10-s2); border-bottom: 1px solid var(--t10-line);
+}
+.sp-wbar__tipname { margin-right: auto; }
+.sp-wbar__tiptable { width: 100%; border-collapse: collapse; }
+.sp-wbar__tiptable td { padding: 2px 0; font-size: var(--t10-fs-sm); }
+.sp-wbar__tiptable td.is-right { text-align: right; white-space: nowrap; padding-left: var(--t10-s3); }
 
 /* ---- Closet: per-category gear ledger ------------------------------------ */
 .sp-cat { margin-top: var(--t10-s4); }
